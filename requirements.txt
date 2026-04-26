@@ -1,0 +1,6 @@
+python-dotenv
+requests
+woocommerce
+fastapi
+uvicorn
+python-multipart
