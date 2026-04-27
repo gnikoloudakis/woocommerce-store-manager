@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import DashboardPage from './pages/DashboardPage'
 import ProductsPage from './pages/ProductsPage'
 import CreateProductPage from './pages/CreateProductPage'
 import EditProductPage from './pages/EditProductPage'
@@ -12,6 +13,14 @@ function Layout({ children }) {
         <NavLink
           to="/"
           end
+          className={({ isActive }) =>
+            `text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-500 hover:text-gray-800'}`
+          }
+        >
+          Dashboard
+        </NavLink>
+        <NavLink
+          to="/products"
           className={({ isActive }) =>
             `text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-500 hover:text-gray-800'}`
           }
@@ -45,7 +54,8 @@ export default function App() {
     <BrowserRouter>
       <Layout>
         <Routes>
-          <Route path="/" element={<ProductsPage />} />
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/products" element={<ProductsPage />} />
           <Route path="/create" element={<CreateProductPage />} />
           <Route path="/edit/:id" element={<EditProductPage />} />
           <Route path="/bulk" element={<BulkImportPage />} />

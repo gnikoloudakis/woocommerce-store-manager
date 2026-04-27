@@ -173,6 +173,15 @@ class WCProductsAdapter:
         response.raise_for_status()
         return response.json()
 
+    def get_product_by_name(self, name: str) -> dict | None:
+        """Look up a product by exact name from the cached list.
+        Returns None if not found. Cache is populated at adapter init and
+        invalidated by reset_wc_adapter()."""
+        for p in self.all_products:
+            if p.get("name") == name:
+                return p
+        return None
+
     def update_product(self, product_id: int, payload: dict) -> tuple:
         response = self.wc_api.put(f"products/{product_id}", payload)
         response.raise_for_status()
