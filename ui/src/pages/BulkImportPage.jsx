@@ -35,7 +35,8 @@ const EXAMPLE = JSON.stringify([
 ], null, 2)
 
 const STATUS_CONFIG = {
-  created: { bg: 'bg-green-50', badge: 'bg-green-100 text-green-700', label: 'Created' },
+  created: { bg: 'bg-green-50',  badge: 'bg-green-100 text-green-700',   label: 'Created' },
+  updated: { bg: 'bg-blue-50',   badge: 'bg-blue-100 text-blue-700',     label: 'Updated' },
   skipped: { bg: 'bg-yellow-50', badge: 'bg-yellow-100 text-yellow-700', label: 'Skipped' },
   error:   { bg: 'bg-red-50',    badge: 'bg-red-100 text-red-700',       label: 'Error'   },
 }
@@ -51,9 +52,15 @@ export default function BulkImportPage() {
     onSuccess: (data) => {
       setResults(data)
       const created = data.filter(r => r.status === 'created').length
+      const updated = data.filter(r => r.status === 'updated').length
       const errors  = data.filter(r => r.status === 'error').length
-      if (errors === 0) toast.success(`${created} product(s) created`)
-      else toast.error(`${created} created, ${errors} failed`)
+      const parts = []
+      if (created) parts.push(`${created} created`)
+      if (updated) parts.push(`${updated} updated`)
+      if (errors)  parts.push(`${errors} failed`)
+      const msg = parts.join(', ') || 'Nothing to do'
+      if (errors === 0) toast.success(msg)
+      else toast.error(msg)
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail ?? 'Import failed')
@@ -101,6 +108,7 @@ export default function BulkImportPage() {
   const count = Array.isArray(parsed) ? parsed.length : 0
 
   const created = results?.filter(r => r.status === 'created').length ?? 0
+  const updated = results?.filter(r => r.status === 'updated').length ?? 0
   const skipped = results?.filter(r => r.status === 'skipped').length ?? 0
   const errors  = results?.filter(r => r.status === 'error').length ?? 0
 
@@ -110,6 +118,9 @@ export default function BulkImportPage() {
         <h1 className="text-2xl font-bold text-gray-900">Bulk Import</h1>
         <p className="text-sm text-gray-500 mt-1">
           Paste or upload a JSON array of products — same format as <code className="bg-gray-100 px-1 rounded">ProductStore</code> but with slugs for categories/tags and filenames (no extension) for images.
+        </p>
+        <p className="text-xs text-gray-400 mt-2">
+          <strong className="text-gray-500">Upsert:</strong> if a product with the same name already exists it will be <span className="text-blue-600">updated</span> (categories, tags, images, short description, secret tags). Existing variations and the long description are preserved. Otherwise the product is <span className="text-green-600">created</span> from scratch.
         </p>
       </div>
 
@@ -177,7 +188,8 @@ export default function BulkImportPage() {
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Results</h2>
             <div className="flex gap-3 text-sm">
-              <span className="text-green-600 font-medium">{created} created</span>
+              {created > 0 && <span className="text-green-600 font-medium">{created} created</span>}
+              {updated > 0 && <span className="text-blue-600 font-medium">{updated} updated</span>}
               {skipped > 0 && <span className="text-yellow-600 font-medium">{skipped} skipped</span>}
               {errors  > 0 && <span className="text-red-600 font-medium">{errors} failed</span>}
             </div>
@@ -192,9 +204,13 @@ export default function BulkImportPage() {
                     <p className="font-medium text-gray-900 text-sm">{r.product_name}</p>
                     {r.product_id && (
                       <p className="text-xs text-gray-500 mt-0.5">
-                        ID #{r.product_id} · {r.variations_count} variation{r.variations_count !== 1 ? 's' : ''}
+                        ID #{r.product_id}
+                        {r.variations_count > 0 && ` · ${r.variations_count} variation${r.variations_count !== 1 ? 's' : ''}`}
                         {r.secret_tags_count > 0 && ` · ${r.secret_tags_count} secret tag${r.secret_tags_count !== 1 ? 's' : ''}`}
                       </p>
+                    )}
+                    {r.note && (
+                      <p className="text-xs text-gray-400 italic mt-0.5">{r.note}</p>
                     )}
                     {r.reason && (
                       <p className="text-xs text-gray-500 mt-0.5">{r.reason}</p>

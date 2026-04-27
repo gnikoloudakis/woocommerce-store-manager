@@ -19,6 +19,18 @@ export const deleteVariation = (productId, varId) => api.delete(`/products/${pro
 export const fetchCategories = () => api.get('/products/categories').then(r => r.data)
 export const fetchTags = () => api.get('/products/tags').then(r => r.data)
 
+// Dashboard
+export const fetchDashboardOverview   = () => api.get('/dashboard/overview').then(r => r.data)
+export const fetchTopSellers          = (limit = 10) => api.get('/dashboard/top-sellers', { params: { limit } }).then(r => r.data)
+export const fetchByCategory          = () => api.get('/dashboard/by-category').then(r => r.data)
+export const fetchByTag               = () => api.get('/dashboard/by-tag').then(r => r.data)
+export const fetchBySecretTag         = () => api.get('/dashboard/by-secret-tag').then(r => r.data)
+export const fetchOutOfStock          = () => api.get('/dashboard/out-of-stock').then(r => r.data)
+export const fetchOrdersOverview      = (period = 'month') => api.get('/dashboard/orders/overview', { params: { period } }).then(r => r.data)
+export const fetchRecentOrders        = (limit = 10) => api.get('/dashboard/orders/recent', { params: { limit } }).then(r => r.data)
+export const fetchSalesTrend          = (period = 'month') => api.get('/dashboard/orders/sales-trend', { params: { period } }).then(r => r.data)
+export const fetchMonthlyTrend        = (months = 12) => api.get('/dashboard/orders/monthly-trend', { params: { months } }).then(r => r.data)
+
 // Bulk import
 export const bulkCreateProducts = (items) => api.post('/products/bulk', items).then(r => r.data)
 

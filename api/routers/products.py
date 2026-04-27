@@ -21,14 +21,53 @@ router = APIRouter(prefix="/products", tags=["products"])
 _product_domain = Product()
 
 
+def _build_filter_params(status: str, type: str, category: str, tag: str, stock_status: str) -> dict:
+    params = {}
+    if status:       params["status"] = status
+    if type:         params["type"] = type
+    if category:     params["category"] = category
+    if tag:          params["tag"] = tag
+    if stock_status: params["stock_status"] = stock_status
+    return params
+
+
 @router.get("")
 def list_products(
     page: int = 1,
-    per_page: int = 20,
+    per_page: int = 20,        # pass -1 to fetch every product across all pages
     search: str = "",
+    status: str = "",
+    type: str = "",
+    category: str = "",        # WC category ID
+    tag: str = "",             # WC tag ID
+    stock_status: str = "",
     wc: WCProductsAdapter = Depends(get_wc_adapter),
 ):
-    params = {"page": page, "per_page": per_page}
+    filter_params = _build_filter_params(status, type, category, tag, stock_status)
+
+    # "All" mode — paginate the WC API internally and return everything in one response
+    if per_page == -1:
+        all_products = []
+        wc_page = 1
+        total = 0
+        while True:
+            params = {"page": wc_page, "per_page": 100, **filter_params}
+            if search:
+                params["search"] = search
+            response = wc.wc_api.get("products", params=params)
+            response.raise_for_status()
+            chunk = response.json()
+            if wc_page == 1:
+                total = int(response.headers.get("X-WP-Total", 0))
+            if not chunk:
+                break
+            all_products.extend(chunk)
+            if len(chunk) < 100:
+                break
+            wc_page += 1
+        return {"products": all_products, "total": total or len(all_products), "total_pages": 1}
+
+    params = {"page": page, "per_page": per_page, **filter_params}
     if search:
         params["search"] = search
     response = wc.wc_api.get("products", params=params)
@@ -74,12 +113,52 @@ def bulk_create_products(
                 meta_data=enriched_product.get("meta_data", []),
             )
 
-            product_result = interactor.create_product(main_payload)
-            if not product_result:
-                results.append({"product_name": product_name, "status": "skipped", "reason": "already exists"})
+            secret_tags = p.get("secret_tags") or []
+
+            # UPSERT: if a product with this name already exists, update it instead of creating a duplicate
+            existing = wc.get_product_by_name(product_name)
+
+            if existing:
+                # Update only the safely re-importable fields. We deliberately leave alone:
+                # - type, sku, attributes (changing these breaks existing variations)
+                # - variations (preserves any per-variation pricing/stock the user set)
+                # - description (preserves user edits / rich content). set_secret_tags below
+                #   reads the current description from the API, so the secret-tag span is updated
+                #   without wiping anything else.
+                update_payload = {
+                    "short_description": main_payload["short_description"],
+                    "categories":        main_payload["categories"],
+                    "tags":              main_payload["tags"],
+                    "images":            main_payload["images"],
+                    "meta_data":         main_payload["meta_data"],
+                    "related_ids":       main_payload.get("related_ids", []),
+                }
+                _, updated_product = wc.update_product(existing["id"], update_payload)
+
+                if secret_tags:
+                    try:
+                        # Re-fetch to get the latest description before rewriting the hidden span
+                        current = wc.get_product(existing["id"])
+                        wc.set_secret_tags(current, secret_tags)
+                    except Exception as e:
+                        print(f"⚠️  Failed to set secret tags on {product_name}: {e}")
+
+                results.append({
+                    "product_name": product_name,
+                    "status": "updated",
+                    "product_id": existing["id"],
+                    "secret_tags_count": len(secret_tags),
+                    "variations_count": 0,
+                    "note": "Variations and description were preserved",
+                })
                 continue
 
-            secret_tags = p.get("secret_tags") or []
+            # CREATE PATH — product didn't exist
+            product_result = interactor.create_product(main_payload)
+            if not product_result:
+                results.append({"product_name": product_name, "status": "error", "reason": "creation failed"})
+                continue
+
             if secret_tags:
                 try:
                     wc.set_secret_tags(product_result, secret_tags)

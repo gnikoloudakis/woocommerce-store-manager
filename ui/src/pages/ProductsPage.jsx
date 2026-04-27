@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { fetchProducts, deleteProduct, setSecretTags } from '../api/client'
+import { fetchProducts, deleteProduct, setSecretTags, fetchCategories, fetchTags } from '../api/client'
+import Lightbox from '../components/Lightbox'
 import toast from 'react-hot-toast'
 
 const STATUS_STYLES = {
@@ -207,18 +208,38 @@ function BulkSecretTagsModal({ products, onClose, onComplete }) {
   )
 }
 
+const PER_PAGE_OPTIONS = [20, 50, 100, -1] // -1 = All
+
 export default function ProductsPage() {
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
+  const [filters, setFilters] = useState({ status: '', type: '', category: '', tag: '', stock_status: '' })
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [bulkAction, setBulkAction] = useState(null) // 'secret-tags' | 'delete' | null
+  const [lightbox, setLightbox] = useState(null)     // {urls, startIndex} | null
   const qc = useQueryClient()
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['products', page, search],
-    queryFn: () => fetchProducts({ page, per_page: 20, search }),
+    queryKey: ['products', page, perPage, search, filters],
+    queryFn: () => fetchProducts({ page, per_page: perPage, search, ...filters }),
   })
+
+  const { data: allCategories = [] } = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
+  const { data: allTags = [] } = useQuery({ queryKey: ['tags'], queryFn: fetchTags })
+
+  function setFilter(key, value) {
+    setFilters(prev => ({ ...prev, [key]: value }))
+    setPage(1)
+  }
+
+  function clearFilters() {
+    setFilters({ status: '', type: '', category: '', tag: '', stock_status: '' })
+    setPage(1)
+  }
+
+  const activeFilterCount = Object.values(filters).filter(Boolean).length
 
   const deleteMutation = useMutation({
     mutationFn: deleteProduct,
@@ -335,6 +356,77 @@ export default function ProductsPage() {
         )}
       </form>
 
+      {/* Filters */}
+      <div className="bg-white border border-gray-200 rounded-lg px-4 py-3 flex flex-wrap items-center gap-3">
+        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Filters</span>
+
+        <select
+          value={filters.status}
+          onChange={e => setFilter('status', e.target.value)}
+          className="border border-gray-300 rounded px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <option value="">Any status</option>
+          <option value="publish">Published</option>
+          <option value="draft">Draft</option>
+          <option value="pending">Pending</option>
+          <option value="private">Private</option>
+        </select>
+
+        <select
+          value={filters.type}
+          onChange={e => setFilter('type', e.target.value)}
+          className="border border-gray-300 rounded px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <option value="">Any type</option>
+          <option value="simple">Simple</option>
+          <option value="variable">Variable</option>
+          <option value="grouped">Grouped</option>
+          <option value="external">External</option>
+        </select>
+
+        <select
+          value={filters.category}
+          onChange={e => setFilter('category', e.target.value)}
+          className="border border-gray-300 rounded px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-[180px]"
+        >
+          <option value="">Any category</option>
+          {allCategories.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+
+        <select
+          value={filters.tag}
+          onChange={e => setFilter('tag', e.target.value)}
+          className="border border-gray-300 rounded px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-[180px]"
+        >
+          <option value="">Any tag</option>
+          {allTags.map(t => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+
+        <select
+          value={filters.stock_status}
+          onChange={e => setFilter('stock_status', e.target.value)}
+          className="border border-gray-300 rounded px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <option value="">Any stock</option>
+          <option value="instock">In stock</option>
+          <option value="outofstock">Out of stock</option>
+          <option value="onbackorder">On backorder</option>
+        </select>
+
+        {activeFilterCount > 0 && (
+          <button
+            onClick={clearFilters}
+            className="ml-auto text-xs text-blue-600 hover:text-blue-800 underline"
+          >
+            Clear {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''}
+          </button>
+        )}
+      </div>
+
       {/* Bulk actions toolbar */}
       {selectedIds.size > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center justify-between">
@@ -371,6 +463,14 @@ export default function ProductsPage() {
           products={selectedProducts}
           onClose={() => setBulkAction(null)}
           onComplete={() => { setBulkAction(null); clearSelection() }}
+        />
+      )}
+
+      {lightbox && (
+        <Lightbox
+          urls={lightbox.urls}
+          startIndex={lightbox.startIndex}
+          onClose={() => setLightbox(null)}
         />
       )}
 
@@ -426,7 +526,23 @@ export default function ProductsPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       {p.images?.[0] && (
-                        <img src={p.images[0].src} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
+                        <button
+                          type="button"
+                          onClick={() => setLightbox({ urls: p.images.map(img => img.src), startIndex: 0 })}
+                          className="relative shrink-0 group"
+                          title={p.images.length > 1 ? `View all ${p.images.length} images` : 'View image'}
+                        >
+                          <img
+                            src={p.images[0].src}
+                            alt=""
+                            className="w-10 h-10 rounded object-cover border border-gray-200 cursor-zoom-in transition-transform group-hover:scale-110"
+                          />
+                          {p.images.length > 1 && (
+                            <span className="absolute -bottom-1 -right-1 bg-gray-700 text-white text-[10px] rounded-full px-1.5 leading-tight border border-white">
+                              {p.images.length}
+                            </span>
+                          )}
+                        </button>
                       )}
                       <div>
                         <p className="font-medium text-gray-900 leading-tight">{p.name}</p>
@@ -482,23 +598,60 @@ export default function ProductsPage() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <button
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-40 hover:bg-gray-50"
-          >
-            Previous
-          </button>
-          <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
-          <button
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-            className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-40 hover:bg-gray-50"
-          >
-            Next
-          </button>
+      {!isLoading && products.length > 0 && (
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-500">
+              Showing{' '}
+              {perPage === -1 ? (
+                <>
+                  <span className="font-medium text-gray-700">all {products.length}</span>
+                  {products.length !== total && <> of <span className="font-medium text-gray-700">{total}</span></>}
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-gray-700">{(page - 1) * perPage + 1}</span>
+                  {' – '}
+                  <span className="font-medium text-gray-700">{(page - 1) * perPage + products.length}</span>
+                  {' of '}
+                  <span className="font-medium text-gray-700">{total}</span>
+                </>
+              )}
+            </span>
+
+            <label className="flex items-center gap-2 text-sm text-gray-500">
+              Per page:
+              <select
+                value={perPage}
+                onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }}
+                className="border border-gray-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+              >
+                {PER_PAGE_OPTIONS.map(n => (
+                  <option key={n} value={n}>{n === -1 ? 'All' : n}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {perPage !== -1 && totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-40 hover:bg-gray-50"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-40 hover:bg-gray-50"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

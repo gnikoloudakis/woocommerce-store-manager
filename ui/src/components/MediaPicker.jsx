@@ -1,35 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchMedia, uploadMedia } from '../api/client'
+import Lightbox from './Lightbox'
 import toast from 'react-hot-toast'
-
-function Lightbox({ url, onClose }) {
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80"
-      onClick={onClose}
-    >
-      <img
-        src={url}
-        alt=""
-        className="max-w-[90vw] max-h-[90vh] object-contain rounded shadow-2xl"
-        onClick={e => e.stopPropagation()}
-      />
-      <button
-        onClick={onClose}
-        className="absolute top-4 right-4 text-white/70 hover:text-white text-3xl leading-none"
-      >
-        ×
-      </button>
-    </div>
-  )
-}
 
 // preloadedImages: [{id, url}] — used for thumbnails before the media library loads
 export default function MediaPicker({ value, onChange, multiple = false, label = 'Image', preloadedImages = [] }) {
@@ -83,7 +56,7 @@ export default function MediaPicker({ value, onChange, multiple = false, label =
 
   return (
     <div>
-      {lightboxUrl && <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+      {lightboxUrl && <Lightbox urls={[lightboxUrl]} onClose={() => setLightboxUrl(null)} />}
 
       {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
 
