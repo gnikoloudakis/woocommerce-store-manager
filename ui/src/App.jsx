@@ -4,6 +4,9 @@ import ProductsPage from './pages/ProductsPage'
 import CreateProductPage from './pages/CreateProductPage'
 import EditProductPage from './pages/EditProductPage'
 import BulkImportPage from './pages/BulkImportPage'
+import OrdersPage from './pages/OrdersPage'
+import OrderDetailPage from './pages/OrderDetailPage'
+import CouponsPage from './pages/CouponsPage'
 
 function Layout({ children }) {
   return (
@@ -26,6 +29,22 @@ function Layout({ children }) {
           }
         >
           Products
+        </NavLink>
+        <NavLink
+          to="/orders"
+          className={({ isActive }) =>
+            `text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-500 hover:text-gray-800'}`
+          }
+        >
+          Orders
+        </NavLink>
+        <NavLink
+          to="/coupons"
+          className={({ isActive }) =>
+            `text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-500 hover:text-gray-800'}`
+          }
+        >
+          Coupons
         </NavLink>
         <NavLink
           to="/create"
@@ -59,6 +78,9 @@ export default function App() {
           <Route path="/create" element={<CreateProductPage />} />
           <Route path="/edit/:id" element={<EditProductPage />} />
           <Route path="/bulk" element={<BulkImportPage />} />
+          <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/orders/:id" element={<OrderDetailPage />} />
+          <Route path="/coupons" element={<CouponsPage />} />
         </Routes>
       </Layout>
     </BrowserRouter>

@@ -19,6 +19,26 @@ export const deleteVariation = (productId, varId) => api.delete(`/products/${pro
 export const fetchCategories = () => api.get('/products/categories').then(r => r.data)
 export const fetchTags = () => api.get('/products/tags').then(r => r.data)
 
+// Orders
+export const fetchOrders          = (params) => api.get('/orders', { params }).then(r => r.data)
+export const fetchOrder           = (id) => api.get(`/orders/${id}`).then(r => r.data)
+export const updateOrderStatus    = (id, status) => api.put(`/orders/${id}/status`, { status }).then(r => r.data)
+export const fetchOrderNotes      = (id) => api.get(`/orders/${id}/notes`).then(r => r.data)
+export const addOrderNote         = (id, note, customer_note = false) => api.post(`/orders/${id}/notes`, { note, customer_note }).then(r => r.data)
+
+// Coupons
+export const fetchCoupons       = (params) => api.get('/coupons', { params }).then(r => r.data)
+export const fetchCoupon        = (id) => api.get(`/coupons/${id}`).then(r => r.data)
+export const createCoupon       = (data) => api.post('/coupons', data).then(r => r.data)
+export const updateCoupon       = (id, data) => api.put(`/coupons/${id}`, data).then(r => r.data)
+export const deleteCoupon       = (id) => api.delete(`/coupons/${id}`).then(r => r.data)
+
+// BOX NOW
+export const fetchBoxNowVoucher   = (orderId) => api.get(`/orders/${orderId}/boxnow`).then(r => r.data)
+export const createBoxNowVoucher  = (orderId) => api.post(`/orders/${orderId}/boxnow`).then(r => r.data)
+export const cancelBoxNowVoucher  = (orderId) => api.delete(`/orders/${orderId}/boxnow`).then(r => r.data)
+export const trackBoxNowParcel    = (orderId) => api.get(`/orders/${orderId}/boxnow/track`).then(r => r.data)
+
 // Dashboard
 export const fetchDashboardOverview   = () => api.get('/dashboard/overview').then(r => r.data)
 export const fetchTopSellers          = (limit = 10) => api.get('/dashboard/top-sellers', { params: { limit } }).then(r => r.data)
