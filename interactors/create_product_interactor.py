@@ -25,25 +25,37 @@ class CreateProductInteractor:
             return None
         return variation_obj
 
+    def _resolve_image(self, value):
+        """Pass through integer media IDs as-is. Look up strings as filenames."""
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+        return self.wp_image_adapter.get_image_id_by_filename(value)
+
+    def _resolve_taxonomy(self, value, lookup_fn):
+        """Pass through integer term IDs. Look up strings as slugs/names."""
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+        return lookup_fn(value)
+
     def enrich_product_obj(self, product_obj: dict) -> dict:
-        # change category names to IDs
         if "categories" in product_obj:
             for cat in product_obj["categories"]:
-                cat["id"] = self.wc_products_adapter.get_category_id_by_name(cat["id"])
-        # change tag names to IDs
+                cat["id"] = self._resolve_taxonomy(cat["id"], self.wc_products_adapter.get_category_id_by_name)
         if "tags" in product_obj:
             for tag in product_obj["tags"]:
-                tag["id"] = self.wc_products_adapter.get_tag_id_by_name(tag["id"])
-        # change main image names to IDs
+                tag["id"] = self._resolve_taxonomy(tag["id"], self.wc_products_adapter.get_tag_id_by_name)
         if "main_image_ids" in product_obj:
-            product_obj["main_image_ids"] = [self.wp_image_adapter.get_image_id_by_filename(img_id) for img_id in product_obj["main_image_ids"]]
+            product_obj["main_image_ids"] = [self._resolve_image(v) for v in product_obj["main_image_ids"]]
         return product_obj
 
     def enrich_variations_obj(self, variations_obj: dict) -> dict:
         if "variation_image_mapping" in variations_obj:
             for k, v in variations_obj["variation_image_mapping"].items():
-                variations_obj["variation_image_mapping"][k] = self.wp_image_adapter.get_image_id_by_filename(v)
-                print(f'{variations_obj["variation_image_mapping"][k]=}')
+                variations_obj["variation_image_mapping"][k] = self._resolve_image(v)
         return variations_obj
 
 

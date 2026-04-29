@@ -87,17 +87,20 @@ def bulk_create_products(
     results = []
 
     for item in body:
-        p = item.product
-        v = item.variations
-        product_name = p.get("product_name", "(unknown)")
+        # Convert validated Pydantic models back to dicts for the existing
+        # enrich/create pipeline (which works on dicts).
+        p_dict = item.product.model_dump()
+        v_dict = item.variations.model_dump()
+        product_name = item.product.product_name
+        secret_tags = item.product.secret_tags
 
         try:
-            enriched_product = interactor.enrich_product_obj(dict(p))
-            enriched_variations = interactor.enrich_variations_obj(dict(v)) if v else {}
+            enriched_product = interactor.enrich_product_obj(p_dict)
+            enriched_variations = interactor.enrich_variations_obj(v_dict)
 
             colors = enriched_product.get("colors", [])
             sizes = enriched_product.get("sizes", [])
-            base_price = enriched_product.get("base_price", _product_domain.BASE_PRICE)
+            base_price = enriched_product.get("base_price") or _product_domain.BASE_PRICE
             _product_domain.BASE_PRICE = base_price
 
             main_payload = _product_domain.get_main_variable_product_object(
@@ -112,8 +115,6 @@ def bulk_create_products(
                 related_ids=enriched_product.get("related_ids", []),
                 meta_data=enriched_product.get("meta_data", []),
             )
-
-            secret_tags = p.get("secret_tags") or []
 
             # UPSERT: if a product with this name already exists, update it instead of creating a duplicate
             existing = wc.get_product_by_name(product_name)

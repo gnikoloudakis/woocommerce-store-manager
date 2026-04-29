@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import products, media, dashboard
+from api.routers import products, media, dashboard, orders, coupons
 
 app = FastAPI(title="WooCommerce Product Manager", version="1.0.0")
 
@@ -21,6 +21,8 @@ app.add_middleware(
 app.include_router(products.router, prefix="/api")
 app.include_router(media.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
+app.include_router(orders.router, prefix="/api")
+app.include_router(coupons.router, prefix="/api")
 
 
 @app.get("/api/health")
