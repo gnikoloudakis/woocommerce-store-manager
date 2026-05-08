@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { fetchOrders, updateOrderStatus } from '../api/client'
 import Spinner from '../components/Spinner'
 import toast from 'react-hot-toast'
@@ -60,15 +60,33 @@ function StatusDropdown({ order, disabled }) {
 }
 
 export default function OrdersPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '')
+  const [dateAfter, setDateAfter]   = useState(searchParams.get('after')  || '')
+  const [dateBefore, setDateBefore] = useState(searchParams.get('before') || '')
+  const [rangeLabel, setRangeLabel] = useState(searchParams.get('label')  || '')
+
+  // Sync URL → state when user navigates here from the dashboard chart
+  useEffect(() => {
+    setStatusFilter(searchParams.get('status') || '')
+    setDateAfter(searchParams.get('after')  || '')
+    setDateBefore(searchParams.get('before') || '')
+    setRangeLabel(searchParams.get('label')  || '')
+    setPage(1)
+  }, [searchParams])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['orders', page, perPage, search, statusFilter],
-    queryFn: () => fetchOrders({ page, per_page: perPage, search, status: statusFilter }),
+    queryKey: ['orders', page, perPage, search, statusFilter, dateAfter, dateBefore],
+    queryFn: () => fetchOrders({
+      page, per_page: perPage, search,
+      status: statusFilter,
+      after:  dateAfter,
+      before: dateBefore,
+    }),
   })
 
   const orders = data?.orders ?? []
@@ -111,15 +129,38 @@ export default function OrdersPage() {
           ))}
         </select>
 
-        {(search || statusFilter) && (
+        {(search || statusFilter || dateAfter || dateBefore) && (
           <button
-            onClick={() => { setSearch(''); setSearchInput(''); setStatusFilter(''); setPage(1) }}
+            onClick={() => {
+              setSearch(''); setSearchInput('');
+              setStatusFilter(''); setDateAfter(''); setDateBefore(''); setRangeLabel('');
+              setSearchParams({})
+              setPage(1)
+            }}
             className="text-xs text-blue-600 hover:text-blue-800 underline"
           >
             Clear filters
           </button>
         )}
       </div>
+
+      {/* Active date-range banner */}
+      {(dateAfter || dateBefore) && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center justify-between text-sm">
+          <span className="text-blue-900">
+            Showing orders {rangeLabel
+              ? <>from <strong>{rangeLabel}</strong></>
+              : <>between <strong>{dateAfter || '∞'}</strong> and <strong>{dateBefore || 'now'}</strong>}</>
+            }
+          </span>
+          <button
+            onClick={() => { setDateAfter(''); setDateBefore(''); setRangeLabel(''); setSearchParams({}); setPage(1) }}
+            className="text-xs text-blue-600 hover:text-blue-800 underline"
+          >
+            Clear date range
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
