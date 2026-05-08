@@ -317,7 +317,7 @@ export default function EditProductPage() {
   return (
     <div className="max-w-4xl space-y-8">
       <div className="flex items-center gap-3">
-        <Link to="/" className="text-gray-400 hover:text-gray-700 text-sm">← Products</Link>
+        <Link to="/products" className="text-gray-400 hover:text-gray-700 text-sm">← Products</Link>
         <span className="text-gray-300">/</span>
         <h1 className="text-2xl font-bold text-gray-900">{product.name}</h1>
         <span className="text-sm text-gray-400 font-mono">#{product.id}</span>

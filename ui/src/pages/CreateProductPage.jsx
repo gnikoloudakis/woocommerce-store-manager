@@ -13,7 +13,7 @@ export default function CreateProductPage() {
     onSuccess: (product) => {
       toast.success(`"${product.name}" created successfully`)
       qc.invalidateQueries({ queryKey: ['products'] })
-      navigate('/')
+      navigate('/products')
     },
     onError: (err) => {
       const detail = err.response?.data?.detail ?? 'Creation failed'
