@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
@@ -171,6 +171,7 @@ def get_boxnow_voucher(
 @router.post("/{order_id}/boxnow")
 def create_boxnow_voucher(
     order_id: int,
+    size: Optional[int] = Query(default=None, ge=1, le=3, description="Compartment size: 1=S, 2=M, 3=L"),
     wc: WCProductsAdapter = Depends(get_wc_adapter),
     boxnow: BoxNowAdapter = Depends(get_boxnow),
 ):
@@ -185,7 +186,7 @@ def create_boxnow_voucher(
         raise HTTPException(status_code=409, detail="Order already has a BOX NOW voucher. Cancel it first.")
 
     try:
-        result = boxnow.create_voucher(order)
+        result = boxnow.create_voucher(order, compartment_size=size)
     except BoxNowError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

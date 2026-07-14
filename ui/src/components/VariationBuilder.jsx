@@ -48,7 +48,9 @@ function TagInput({ values, onChange, suggestions, placeholder }) {
   )
 }
 
-export default function VariationBuilder({ sizes, setSizes, colors, setColors, basePrice, setBasePrice, priceOverrides, setPriceOverrides, salePrices, setSalePrices, variationImageMapping, setVariationImageMapping }) {
+export default function VariationBuilder({ sizes, setSizes, colors, setColors, basePrice, setBasePrice, priceOverrides, setPriceOverrides, salePrices, setSalePrices, variationImageMapping, setVariationImageMapping, stockQuantities = {}, setStockQuantities }) {
+  const manageStock = typeof setStockQuantities === 'function'
+
   const combinations = useMemo(() => {
     const result = []
     for (const size of sizes) {
@@ -63,6 +65,11 @@ export default function VariationBuilder({ sizes, setSizes, colors, setColors, b
     if (field === 'price') setPriceOverrides(prev => ({ ...prev, [key]: value }))
     if (field === 'sale') setSalePrices(prev => ({ ...prev, [key]: value }))
     if (field === 'image') setVariationImageMapping(prev => ({ ...prev, [key]: value }))
+    if (field === 'stock') setStockQuantities(prev => ({ ...prev, [key]: value }))
+  }
+
+  function setAllStock(value) {
+    setStockQuantities(Object.fromEntries(combinations.map(key => [key, value])))
   }
 
   return (
@@ -92,7 +99,10 @@ export default function VariationBuilder({ sizes, setSizes, colors, setColors, b
 
       {combinations.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-3">Variation overrides ({combinations.length} combinations)</h4>
+          <h4 className="text-sm font-medium text-gray-700 mb-1">Variation overrides ({combinations.length} combinations)</h4>
+          {manageStock && (
+            <p className="text-xs text-gray-400 mb-3">Stock is optional — leave blank to keep a variation untracked (unlimited). Enter 0 to mark it out of stock.</p>
+          )}
           <div className="border border-gray-200 rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
@@ -100,6 +110,21 @@ export default function VariationBuilder({ sizes, setSizes, colors, setColors, b
                   <th className="px-3 py-2 text-left">Variation</th>
                   <th className="px-3 py-2 text-left">Regular Price (€)</th>
                   <th className="px-3 py-2 text-left">Sale Price (€)</th>
+                  {manageStock && (
+                    <th className="px-3 py-2 text-left">
+                      <div className="flex items-center gap-2">
+                        <span>Stock</span>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="set all"
+                          onChange={e => setAllStock(e.target.value)}
+                          className="border border-gray-300 rounded px-2 py-0.5 w-20 text-xs font-normal normal-case focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          title="Set this quantity for every variation"
+                        />
+                      </div>
+                    </th>
+                  )}
                   <th className="px-3 py-2 text-left">Image</th>
                 </tr>
               </thead>
@@ -125,6 +150,18 @@ export default function VariationBuilder({ sizes, setSizes, colors, setColors, b
                         className="border border-gray-300 rounded px-2 py-1 w-24 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                       />
                     </td>
+                    {manageStock && (
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={stockQuantities[key] ?? ''}
+                          onChange={e => setOverride(key, 'stock', e.target.value)}
+                          placeholder="∞"
+                          className="border border-gray-300 rounded px-2 py-1 w-20 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                      </td>
+                    )}
                     <td className="px-3 py-2">
                       <MediaPicker
                         value={variationImageMapping[key] ?? null}

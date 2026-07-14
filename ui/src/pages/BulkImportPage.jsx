@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { bulkCreateProducts } from '../api/client'
 import toast from 'react-hot-toast'
+import GuidedBulkAdd from '../components/GuidedBulkAdd'
 
 const EXAMPLE = JSON.stringify([
   {
@@ -40,7 +41,7 @@ const STATUS_CONFIG = {
   error:   { bg: 'bg-red-50',    badge: 'bg-red-100 text-red-700',       label: 'Error'   },
 }
 
-export default function BulkImportPage() {
+function JsonPasteTab() {
   const [json, setJson] = useState('')
   const [parseError, setParseError] = useState(null)
   const [results, setResults] = useState(null)
@@ -135,7 +136,7 @@ export default function BulkImportPage() {
   const errors  = results?.filter(r => r.status === 'error').length ?? 0
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="space-y-6">
 
       {/* Progress blocker */}
       {isImporting && (
@@ -169,8 +170,7 @@ export default function BulkImportPage() {
       )}
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Bulk Import</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-gray-500">
           Paste or upload a JSON array of products — same format as <code className="bg-gray-100 px-1 rounded">ProductStore</code> but with slugs for categories/tags and filenames (no extension) for images.
         </p>
         <p className="text-xs text-gray-400 mt-2">
@@ -313,6 +313,39 @@ export default function BulkImportPage() {
           <p><strong>Secret tags</strong> — internal-only keywords stored in a hidden span inside the product description. Customers don't see them, but they're searchable from the WooCommerce admin. Optional.</p>
         </div>
       </details>
+    </div>
+  )
+}
+
+function TabButton({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+        active ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-800'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+export default function BulkImportPage() {
+  const [tab, setTab] = useState('guided')
+  return (
+    <div className="max-w-4xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Add Products</h1>
+        <p className="text-sm text-gray-500 mt-1">Create many products at once — step-by-step, or by pasting JSON.</p>
+      </div>
+
+      <div className="flex gap-1 border-b border-gray-200">
+        <TabButton active={tab === 'guided'} onClick={() => setTab('guided')}>Guided</TabButton>
+        <TabButton active={tab === 'json'} onClick={() => setTab('json')}>JSON / Paste</TabButton>
+      </div>
+
+      {tab === 'guided' ? <GuidedBulkAdd /> : <JsonPasteTab />}
     </div>
   )
 }

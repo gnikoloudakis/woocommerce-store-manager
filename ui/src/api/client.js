@@ -66,7 +66,7 @@ export const deleteCoupon  = (id)     => api.delete(`/coupons/${id}`, cfg()).the
 
 // BOX NOW
 export const fetchBoxNowVoucher  = (orderId) => api.get(`/orders/${orderId}/boxnow`, cfg()).then(r => r.data)
-export const createBoxNowVoucher = (orderId) => api.post(`/orders/${orderId}/boxnow`, {}, cfg()).then(r => r.data)
+export const createBoxNowVoucher = (orderId, size) => api.post(`/orders/${orderId}/boxnow`, {}, cfg({ params: { ...sp(), ...(size ? { size } : {}) } })).then(r => r.data)
 export const cancelBoxNowVoucher = (orderId) => api.delete(`/orders/${orderId}/boxnow`, cfg()).then(r => r.data)
 export const trackBoxNowParcel   = (orderId) => api.get(`/orders/${orderId}/boxnow/track`, cfg()).then(r => r.data)
 
