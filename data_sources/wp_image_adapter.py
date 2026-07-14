@@ -15,10 +15,15 @@ class WPImageAdapter:
     # Configuration
     IMAGES_FOLDER = "images"
 
-    def __init__(self):
-        self.wc_url = Config.get_param("WC_URL")
-        self.username = Config.get_param("WP_USER")
-        self.password = Config.get_param("WP_PASSWORD")
+    def __init__(
+        self,
+        url: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
+    ):
+        self.wc_url   = url      or Config.get_param("WC_URL")      or ""
+        self.username = username or Config.get_param("WP_USER")     or ""
+        self.password = password or Config.get_param("WP_PASSWORD") or ""
         self.creds = self.username + ":" + self.password
         self.cred_token = base64.b64encode(self.creds.encode())
         self.headers = {"Authorization": "Basic " + self.cred_token.decode("utf-8")}
@@ -26,10 +31,12 @@ class WPImageAdapter:
         self.all_media = self.list_all_media()
 
     def get_image_id_by_filename(self, filename: str) -> int | None:
-        """Get the ID of an image by its filename."""
+        """Get the ID of an image by its filename (extension-agnostic)."""
+        stem = os.path.splitext(filename)[0]
         for med in self.all_media:
-            med_filename = med["filename"].split("/")[-1]  # Get the last part of the path
-            if med_filename == f"{filename}.jpg":  # or med_filename == f"{filename}-scaled.jpg":
+            med_filename = med["filename"].split("/")[-1]
+            med_stem = os.path.splitext(med_filename)[0]
+            if med_stem == stem or med_filename == filename:
                 return med["id"]
         raise ValueError(f"Image with filename '{filename}' not found in media library.")
 
@@ -55,18 +62,34 @@ class WPImageAdapter:
                 _id = item.get("id")
                 filename = item.get("media_details", {}).get("file")
                 url = item.get("source_url")
-                _alt_name = url.split("/")[-1]  # Get the last part of the URL
-                all_media.append({"id": _id, "filename": filename if filename else _alt_name, "url": url})
-                # print(f"ID: {_id}, Filename: {filename if filename else _alt_name}, URL: {url}")
+                _alt_name = url.split("/")[-1]
+                title = item.get("title", {}).get("rendered", "") or ""
+                alt_text = item.get("alt_text", "") or ""
+                all_media.append({
+                    "id": _id,
+                    "filename": filename if filename else _alt_name,
+                    "url": url,
+                    "title": title,
+                    "alt_text": alt_text,
+                })
             if len(media_items) < 100:
                 break
             page += 1
         return all_media
 
-    def upload_image(self, image_path):
+    def upload_image(self, image_path, filename=None):
         url = f"{self.wc_url}/wp-json/wp/v2/media"
-        self.headers["Content-Disposition"] = f'attachment; filename="{image_path.split("/")[-1]}"'
-        self.headers["Content-Type"] = "image/jpeg"  # Adjust based on your image type
+        name = filename or image_path.split("/")[-1]
+        self.headers["Content-Disposition"] = f'attachment; filename="{name}"'
+        import mimetypes
+        ext = os.path.splitext(name)[1].lower()
+        content_type = (
+            mimetypes.types_map.get(ext)
+            or {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                "gif": "image/gif", "webp": "image/webp", "svg": "image/svg+xml",
+                "pdf": "application/pdf"}.get(ext.lstrip("."), "application/octet-stream")
+        )
+        self.headers["Content-Type"] = content_type
         with open(image_path, "rb") as img_file:
             img_data = img_file.read()
         r = requests.post(url, headers=self.headers, data=img_data)

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "cranky_gr",
+    "label": "cranky.gr",
+    "env": {
+      "wc_url":      "WC_URL",
+      "wp_user":     "WP_USER",
+      "wp_password": "WP_PASSWORD",
+      "wc_key":      "CONSUMER_KEY",
+      "wc_secret":   "CONSUMER_SECRET"
+    }
+  },
+  {
+    "id": "cranky_cranky_gr",
+    "label": "cranky.cranky.gr",
+    "env": {
+      "wc_url":      "CRANKY_CRANKY_URL",
+      "wp_user":     "CRANKY_CRANKY_WP_USER",
+      "wp_password": "CRANKY_CRANKY_WP_PASSWORD",
+      "wc_key":      "CRANKY_CRANKY_CONSUMER_KEY",
+      "wc_secret":   "CRANKY_CRANKY_SECRET"
+    }
+  }
+]

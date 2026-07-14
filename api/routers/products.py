@@ -31,6 +31,9 @@ def _build_filter_params(status: str, type: str, category: str, tag: str, stock_
     return params
 
 
+_WC_SORT_FIELDS = {"id", "title", "price", "date", "popularity", "rating", "menu_order", "slug"}
+
+
 @router.get("")
 def list_products(
     page: int = 1,
@@ -41,9 +44,15 @@ def list_products(
     category: str = "",        # WC category ID
     tag: str = "",             # WC tag ID
     stock_status: str = "",
+    orderby: str = "date",
+    order: str = "desc",
     wc: WCProductsAdapter = Depends(get_wc_adapter),
 ):
     filter_params = _build_filter_params(status, type, category, tag, stock_status)
+    sort_params = {}
+    if orderby in _WC_SORT_FIELDS:
+        sort_params["orderby"] = orderby
+        sort_params["order"] = order if order in ("asc", "desc") else "desc"
 
     # "All" mode — paginate the WC API internally and return everything in one response
     if per_page == -1:
@@ -51,7 +60,7 @@ def list_products(
         wc_page = 1
         total = 0
         while True:
-            params = {"page": wc_page, "per_page": 100, **filter_params}
+            params = {"page": wc_page, "per_page": 100, **filter_params, **sort_params}
             if search:
                 params["search"] = search
             response = wc.wc_api.get("products", params=params)
@@ -67,7 +76,7 @@ def list_products(
             wc_page += 1
         return {"products": all_products, "total": total or len(all_products), "total_pages": 1}
 
-    params = {"page": page, "per_page": per_page, **filter_params}
+    params = {"page": page, "per_page": per_page, **filter_params, **sort_params}
     if search:
         params["search"] = search
     response = wc.wc_api.get("products", params=params)
@@ -144,13 +153,31 @@ def bulk_create_products(
                     except Exception as e:
                         print(f"⚠️  Failed to set secret tags on {product_name}: {e}")
 
+                # Create variations only if the product currently has none (e.g. first import
+                # created the product shell but variations were never generated).
+                existing_variations = wc.list_product_variations(existing["id"])
+                variations_created = 0
+                if not existing_variations:
+                    variation_objects = _product_domain._get_all_variation_objects(
+                        base_sku=existing["sku"],
+                        variation_image_mapping=enriched_variations.get("variation_image_mapping", {}),
+                        price_overrides=enriched_variations.get("price_overrides", {}),
+                        sale_prices=enriched_variations.get("sale_prices", {}),
+                        stock_quantities=enriched_variations.get("stock_quantities", {}),
+                        colors=colors,
+                        sizes=sizes,
+                    )
+                    for var in variation_objects:
+                        interactor.create_variation(product_id=existing["id"], variation_payload=var)
+                    variations_created = len(variation_objects)
+
                 results.append({
                     "product_name": product_name,
                     "status": "updated",
                     "product_id": existing["id"],
                     "secret_tags_count": len(secret_tags),
-                    "variations_count": 0,
-                    "note": "Variations and description were preserved",
+                    "variations_count": variations_created,
+                    "note": "Variations created" if variations_created else "Variations preserved",
                 })
                 continue
 
@@ -189,18 +216,173 @@ def bulk_create_products(
         except Exception as e:
             results.append({"product_name": product_name, "status": "error", "reason": str(e)})
 
-    reset_wc_adapter()
+    reset_wc_adapter(wc)
     return results
 
 
 @router.get("/categories")
 def list_categories(wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    wc.all_categories = wc._list_all_categories()
     return wc.all_categories
+
+
+@router.post("/categories")
+def create_category(body: dict, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    r = wc.wc_api.post("products/categories", body)
+    r.raise_for_status()
+    reset_wc_adapter(wc)
+    return r.json()
+
+
+@router.put("/categories/{cat_id}")
+def update_category(cat_id: int, body: dict, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    r = wc.wc_api.put(f"products/categories/{cat_id}", body)
+    r.raise_for_status()
+    reset_wc_adapter(wc)
+    return r.json()
+
+
+@router.delete("/categories/{cat_id}")
+def delete_category(cat_id: int, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    r = wc.wc_api.delete(f"products/categories/{cat_id}", params={"force": True})
+    r.raise_for_status()
+    reset_wc_adapter(wc)
+    return {"deleted": True, "id": cat_id}
 
 
 @router.get("/tags")
 def list_tags(wc: WCProductsAdapter = Depends(get_wc_adapter)):
     return wc.all_tags
+
+
+@router.post("/tags")
+def create_tag(body: dict, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    r = wc.wc_api.post("products/tags", body)
+    r.raise_for_status()
+    reset_wc_adapter(wc)
+    return r.json()
+
+
+@router.put("/tags/{tag_id}")
+def update_tag(tag_id: int, body: dict, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    r = wc.wc_api.put(f"products/tags/{tag_id}", body)
+    r.raise_for_status()
+    reset_wc_adapter(wc)
+    return r.json()
+
+
+@router.delete("/tags/{tag_id}")
+def delete_tag(tag_id: int, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    r = wc.wc_api.delete(f"products/tags/{tag_id}", params={"force": True})
+    r.raise_for_status()
+    reset_wc_adapter(wc)
+    return {"deleted": True, "id": tag_id}
+
+
+@router.get("/attributes")
+def list_attributes(wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    page, results = 1, []
+    while True:
+        r = wc.wc_api.get("products/attributes", params={"page": page, "per_page": 100})
+        r.raise_for_status()
+        chunk = r.json()
+        if not chunk:
+            break
+        results.extend(chunk)
+        if len(chunk) < 100:
+            break
+        page += 1
+    return results
+
+
+@router.post("/attributes")
+def create_attribute(body: dict, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    r = wc.wc_api.post("products/attributes", body)
+    r.raise_for_status()
+    return r.json()
+
+
+@router.put("/attributes/{attr_id}")
+def update_attribute(attr_id: int, body: dict, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    r = wc.wc_api.put(f"products/attributes/{attr_id}", body)
+    r.raise_for_status()
+    return r.json()
+
+
+@router.delete("/attributes/{attr_id}")
+def delete_attribute(attr_id: int, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    r = wc.wc_api.delete(f"products/attributes/{attr_id}", params={"force": True})
+    r.raise_for_status()
+    return {"deleted": True, "id": attr_id}
+
+
+@router.get("/attributes/{attr_id}/terms")
+def list_attribute_terms(attr_id: int, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    page, results = 1, []
+    while True:
+        r = wc.wc_api.get(f"products/attributes/{attr_id}/terms", params={"page": page, "per_page": 100})
+        r.raise_for_status()
+        chunk = r.json()
+        if not chunk:
+            break
+        results.extend(chunk)
+        if len(chunk) < 100:
+            break
+        page += 1
+    return results
+
+
+@router.post("/attributes/{attr_id}/terms")
+def create_attribute_term(attr_id: int, body: dict, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    r = wc.wc_api.post(f"products/attributes/{attr_id}/terms", body)
+    r.raise_for_status()
+    return r.json()
+
+
+@router.put("/attributes/{attr_id}/terms/{term_id}")
+def update_attribute_term(attr_id: int, term_id: int, body: dict, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    r = wc.wc_api.put(f"products/attributes/{attr_id}/terms/{term_id}", body)
+    r.raise_for_status()
+    return r.json()
+
+
+@router.delete("/attributes/{attr_id}/terms/{term_id}")
+def delete_attribute_term(attr_id: int, term_id: int, wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    r = wc.wc_api.delete(f"products/attributes/{attr_id}/terms/{term_id}", params={"force": True})
+    r.raise_for_status()
+    return {"deleted": True, "id": term_id}
+
+
+@router.get("/image-audit")
+def image_audit(wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    import re
+    from concurrent.futures import ThreadPoolExecutor
+    numeric_re = re.compile(r'^\d+(-\d+)+\.(jpg|jpeg|png|webp|gif)$', re.IGNORECASE)
+
+    r0 = wc.wc_api.get("products", params={"page": 1, "per_page": 100, "status": "any"})
+    r0.raise_for_status()
+    total_pages = int(r0.headers.get("X-WP-TotalPages", 1))
+    all_products = list(r0.json())
+
+    def _fetch(page):
+        r = wc.wc_api.get("products", params={"page": page, "per_page": 100, "status": "any"})
+        r.raise_for_status()
+        return r.json()
+
+    if total_pages > 1:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            for chunk in ex.map(_fetch, range(2, total_pages + 1)):
+                all_products.extend(chunk)
+
+    flagged = []
+    for p in all_products:
+        bad = [img["src"].split("/")[-1].split("?")[0]
+               for img in p.get("images", [])
+               if numeric_re.match(img.get("src", "").split("/")[-1].split("?")[0])]
+        if bad:
+            flagged.append({"id": p["id"], "name": p["name"], "images": bad})
+
+    return {"total_scanned": len(all_products), "flagged_count": len(flagged), "products": flagged}
 
 
 @router.get("/{product_id}")
@@ -276,7 +458,7 @@ def create_product(
             interactor.create_variation(product_id=product_result["id"], variation_payload=var)
 
     # Bust the local product cache so the new product shows up immediately
-    reset_wc_adapter()
+    reset_wc_adapter(wc)
     return product_result
 
 
@@ -303,22 +485,26 @@ def update_product(
 
     if body.categories is not None:
         enriched_cats = []
-        for slug in body.categories:
-            try:
-                cat_id = wc.get_category_id_by_name(slug)
-                enriched_cats.append({"id": cat_id})
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
+        for item in body.categories:
+            if isinstance(item, dict) and "id" in item:
+                enriched_cats.append({"id": item["id"]})
+            else:
+                try:
+                    enriched_cats.append({"id": wc.get_category_id_by_name(str(item))})
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=str(e))
         payload["categories"] = enriched_cats
 
     if body.tags is not None:
         enriched_tags = []
-        for slug in body.tags:
-            try:
-                tag_id = wc.get_tag_id_by_name(slug)
-                enriched_tags.append({"id": tag_id})
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
+        for item in body.tags:
+            if isinstance(item, dict) and "id" in item:
+                enriched_tags.append({"id": item["id"]})
+            else:
+                try:
+                    enriched_tags.append({"id": wc.get_tag_id_by_name(str(item))})
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=str(e))
         payload["tags"] = enriched_tags
 
     if body.main_image_ids is not None:
@@ -329,17 +515,83 @@ def update_product(
 
     try:
         _, updated = wc.update_product(product_id, payload)
-        reset_wc_adapter()
         return updated
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{product_id}/relink-images")
+def relink_images(
+    product_id: int,
+    wc: WCProductsAdapter = Depends(get_wc_adapter),
+    wp: WPImageAdapter = Depends(get_wp_image_adapter),
+):
+    """
+    Replace any external image src URLs on this product with local media IDs
+    matched by filename. Prevents WooCommerce from sideloading on every update.
+    """
+    product = wc.get_product(product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    import re as _re
+    media_by_filename = {m["url"].split("/")[-1].split("?")[0]: m["id"] for m in wp.all_media}
+    # Also index by base name (strip WordPress's -N dedup suffix: "1-1.jpg" → "1.jpg")
+    dedup_re = _re.compile(r'^(.*)-\d+(\.[^.]+)$')
+    media_by_base: dict[str, int] = {}
+    for fname, fid in media_by_filename.items():
+        m = dedup_re.match(fname)
+        if m:
+            base = m.group(1) + m.group(2)
+            media_by_base.setdefault(base, fid)
+
+    local_host = wc.wc_api.url.rstrip("/").split("//")[-1].split("/")[0]
+
+    fixed, skipped = [], []
+    new_images = []
+    changed = False
+    for img in product.get("images", []):
+        src = img.get("src", "")
+        if not src:
+            continue
+        filename = src.split("/")[-1].split("?")[0]
+        img_host = src.split("//")[-1].split("/")[0]
+
+        # Already local — check if it's a -N duplicate we can improve
+        if img_host == local_host:
+            m = dedup_re.match(filename)
+            if m:
+                base = m.group(1) + m.group(2)
+                better_id = media_by_filename.get(base)
+                if better_id and better_id != img.get("id"):
+                    new_images.append({"id": better_id})
+                    fixed.append(f"{filename} → {base}")
+                    changed = True
+                    continue
+            new_images.append({"id": img["id"]})
+            continue
+
+        # External URL — resolve to local
+        local_id = media_by_filename.get(filename) or media_by_base.get(filename)
+        if local_id:
+            new_images.append({"id": local_id})
+            fixed.append(filename)
+            changed = True
+        else:
+            skipped.append(filename)
+
+    if changed:
+        r = wc.wc_api.put(f"products/{product_id}", {"images": new_images})
+        r.raise_for_status()
+
+    return {"fixed": fixed, "skipped": skipped}
 
 
 @router.delete("/{product_id}")
 def delete_product(product_id: int, wc: WCProductsAdapter = Depends(get_wc_adapter)):
     try:
         wc.delete_product(product_id)
-        reset_wc_adapter()
+        reset_wc_adapter(wc)
         return {"deleted": True, "id": product_id}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
