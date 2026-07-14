@@ -11,6 +11,7 @@ router = APIRouter(prefix="/media", tags=["media"])
 
 @router.get("")
 def list_media(wp: WPImageAdapter = Depends(get_wp_image_adapter)):
+    wp.all_media = wp.list_all_media()
     return wp.all_media
 
 
@@ -19,16 +20,13 @@ async def upload_media(
     file: UploadFile = File(...),
     wp: WPImageAdapter = Depends(get_wp_image_adapter),
 ):
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only image files are supported")
-
-    suffix = os.path.splitext(file.filename or "upload.jpg")[1] or ".jpg"
+    suffix = os.path.splitext(file.filename or "upload.bin")[1] or ".bin"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(await file.read())
         tmp_path = tmp.name
 
     try:
-        url = wp.upload_image(tmp_path)
+        url = wp.upload_image(tmp_path, filename=file.filename)
         # Refresh media cache
         wp.all_media = wp.list_all_media()
         # Find the newly uploaded item
