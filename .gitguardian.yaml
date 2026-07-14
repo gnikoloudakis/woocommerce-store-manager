@@ -1,0 +1,24 @@
+# GitGuardian / ggshield configuration
+# https://docs.gitguardian.com/ggshield-docs/reference/config
+#
+# The paths below were flagged as "Generic Password" but are confirmed
+# false positives — neither contains a hardcoded credential:
+#
+#   * api/site_registry.py
+#       Reads all credentials from .env at runtime (dotenv_values). The only
+#       "password" symbols are variable/dict-key names holding env-sourced
+#       values; there is no literal secret in the file.
+#
+#   * api/routers/blog_migration.py
+#       Assigns payload["password"] a value produced by random.choices(...)
+#       when creating a new WooCommerce customer during import — a value
+#       generated fresh at runtime, not a stored secret.
+#
+# NOTE: real credentials live only in .env (gitignored); sites.json stores
+# env-variable *names*, never values.
+
+version: 2
+secret:
+  ignored-paths:
+    - 'api/site_registry.py'
+    - 'api/routers/blog_migration.py'
