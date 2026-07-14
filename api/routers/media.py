@@ -20,6 +20,13 @@ async def upload_media(
     file: UploadFile = File(...),
     wp: WPImageAdapter = Depends(get_wp_image_adapter),
 ):
+    # De-duplicate by filename: if an image with the same name already exists,
+    # reuse it instead of letting WordPress create a copy (101.webp -> 101_1.webp).
+    wp.all_media = wp.list_all_media()
+    existing = wp.find_media_by_filename(file.filename)
+    if existing:
+        return {**existing, "deduped": True}
+
     suffix = os.path.splitext(file.filename or "upload.bin")[1] or ".bin"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(await file.read())

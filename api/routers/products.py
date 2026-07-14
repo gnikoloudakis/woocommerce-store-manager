@@ -222,7 +222,11 @@ def bulk_create_products(
 
 @router.get("/categories")
 def list_categories(wc: WCProductsAdapter = Depends(get_wc_adapter)):
-    wc.all_categories = wc._list_all_categories()
+    # Serve the adapter's cached list (populated on init, invalidated by
+    # reset_wc_adapter after any category mutation) — same as /tags. Avoids
+    # re-fetching every category page from WooCommerce on every request.
+    if not getattr(wc, "all_categories", None):
+        wc.all_categories = wc._list_all_categories()
     return wc.all_categories
 
 

@@ -1,5 +1,6 @@
 import base64
 import os
+import re
 
 import requests
 
@@ -45,6 +46,24 @@ class WPImageAdapter:
             if filename in file["filename"]:
                 # print(f"Found media file: {file['filename']} with URL: {file['url']}")
                 return file
+        return None
+
+    def find_media_by_filename(self, filename: str):
+        """Return the media item matching `filename` (extension-agnostic), or None.
+
+        Non-raising counterpart to get_image_id_by_filename. Used to de-duplicate
+        uploads so WordPress does not create 101_1.webp when 101.webp already exists.
+        Also tolerates WordPress' own dedupe suffix (101_1 matches 101).
+        """
+        if not filename:
+            return None
+        stem = os.path.splitext(filename)[0].lower()
+        for med in self.all_media or []:
+            med_filename = med["filename"].split("/")[-1]
+            med_stem = os.path.splitext(med_filename)[0].lower()
+            base_stem = re.sub(r"-\d+$", "", re.sub(r"_\d+$", "", med_stem))
+            if stem in (med_stem, base_stem) or med_filename.lower() == filename.lower():
+                return med
         return None
 
     def list_all_media(self):

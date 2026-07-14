@@ -153,8 +153,8 @@ class Product:
         sale_price = sale_prices.get(variation_key, "")
         current_price = sale_price if sale_price else regular_price
 
-        # Get stock quantity
-        stock_qty = stock_quantities.get(variation_key, 100)
+        # Get stock quantity (only manage stock when a value was supplied)
+        stock_qty = stock_quantities.get(variation_key)
 
         # Build variation payload
         variation_payload = {
@@ -162,14 +162,17 @@ class Product:
             "price": current_price,
             "sku": variation_sku,
             "description": f"{size} size in {color} color",
-            # "manage_stock": True,
-            # "stock_quantity": None,  # stock_qty,
-            # "stock_status": "instock" if stock_qty > 0 else "outofstock",
-            # "weight": "0.5Kg",  # Default weight, can be adjusted per size
-            # "dimensions": {"length": size_spec["length"], "width": size_spec["width"], "height": "1"},
             "dimensions": {},
             "attributes": [{"id": 0, "name": "Size", "slug": "size", "option": size}, {"id": 0, "name": "Color", "slug": "color", "option": color}],
         }
+
+        # Manage stock per-variation only when a quantity is provided; otherwise
+        # leave WooCommerce's default (stock managed at parent / status-based).
+        if stock_qty is not None and str(stock_qty).strip() != "":
+            qty = int(stock_qty)
+            variation_payload["manage_stock"] = True
+            variation_payload["stock_quantity"] = qty
+            variation_payload["stock_status"] = "instock" if qty > 0 else "outofstock"
 
         # Add sale price if specified
         if sale_price:

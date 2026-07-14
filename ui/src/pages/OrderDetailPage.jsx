@@ -75,8 +75,11 @@ function AddressBlock({ address, type }) {
   )
 }
 
+const BOXNOW_SIZES = [{ v: 1, l: 'S' }, { v: 2, l: 'M' }, { v: 3, l: 'L' }]
+
 function BoxNowSection({ orderId }) {
   const qc = useQueryClient()
+  const [size, setSize] = useState(1)
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['boxnow', orderId],
     queryFn: () => fetchBoxNowVoucher(orderId),
@@ -84,7 +87,7 @@ function BoxNowSection({ orderId }) {
   })
 
   const createMutation = useMutation({
-    mutationFn: () => createBoxNowVoucher(orderId),
+    mutationFn: (chosenSize) => createBoxNowVoucher(orderId, chosenSize),
     onSuccess: () => {
       toast.success('Voucher created')
       qc.invalidateQueries({ queryKey: ['boxnow', orderId] })
@@ -212,14 +215,31 @@ function BoxNowSection({ orderId }) {
             </p>
           )}
 
-          <div className="text-center pt-1">
-            <button
-              onClick={() => createMutation.mutate()}
-              disabled={createMutation.isPending || !data?.locker_id}
-              className="px-4 py-2 bg-yellow-500 text-white rounded-lg text-sm font-medium hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {createMutation.isPending ? 'Creating…' : 'Create BOX NOW voucher'}
-            </button>
+          <div className="pt-1 space-y-2">
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-xs text-gray-500">Compartment size:</span>
+              {BOXNOW_SIZES.map(o => (
+                <button
+                  key={o.v}
+                  type="button"
+                  onClick={() => setSize(o.v)}
+                  className={`px-3 py-1 rounded-full border text-sm transition-colors ${
+                    size === o.v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                  }`}
+                >
+                  {o.l}
+                </button>
+              ))}
+            </div>
+            <div className="text-center">
+              <button
+                onClick={() => createMutation.mutate(size)}
+                disabled={createMutation.isPending || !data?.locker_id}
+                className="px-4 py-2 bg-yellow-500 text-white rounded-lg text-sm font-medium hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {createMutation.isPending ? 'Creating…' : `Create BOX NOW voucher (size ${BOXNOW_SIZES.find(o => o.v === size)?.l})`}
+              </button>
+            </div>
           </div>
         </div>
       )}

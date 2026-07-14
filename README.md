@@ -162,6 +162,38 @@ BOXNOW_DEFAULT_WEIGHT=0                         # grams; 0 = unknown
 BOXNOW_TRACKING_URL_TEMPLATE=https://t.boxnow.gr/?track={voucher}
 ```
 
+#### Required environment variables
+
+Per site (the **default** site reads the unprefixed names; extra sites use the names you map in `sites.json`):
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `WC_URL` | ✅ | Store base URL, e.g. `https://cranky.gr` |
+| `CONSUMER_KEY` | ✅ | WooCommerce REST API consumer key (read/write on products, orders, coupons, reports) |
+| `CONSUMER_SECRET` | ✅ | WooCommerce REST API consumer secret |
+| `WP_USER` | ✅ for media | WordPress username (image upload / media library) |
+| `WP_PASSWORD` | ✅ for media | WordPress **application password** (Users → Profile → Application Passwords) |
+| `WC_QUERY_STRING_AUTH` | ⬜ optional | `true` to force query-string auth if your host strips the Basic-auth header (default `false`) |
+
+BOX NOW locker shipping — **only required if you use the BOX NOW integration**; leave unset otherwise:
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `BOXNOW_API_URL` | ✅ for BOX NOW | API base — `https://api-stage.boxnow.gr` (staging) or the production URL |
+| `BOXNOW_CLIENT_ID` | ✅ for BOX NOW | OAuth2 client id (Partner API) |
+| `BOXNOW_CLIENT_SECRET` | ✅ for BOX NOW | OAuth2 client secret |
+| `BOXNOW_WAREHOUSE_ID` | ✅ for BOX NOW | Origin pickup-point `locationId` |
+| `BOXNOW_WAREHOUSE_CONTACT_NAME` | ✅ for BOX NOW | Origin contact name |
+| `BOXNOW_WAREHOUSE_CONTACT_EMAIL` | ✅ for BOX NOW | Origin contact email |
+| `BOXNOW_WAREHOUSE_CONTACT_PHONE` | ✅ for BOX NOW | Origin contact phone (full international format, e.g. `+30…`) |
+| `BOXNOW_DEFAULT_COMPARTMENT_SIZE` | ⬜ optional | Default parcel size `1`=S, `2`=M, `3`=L (default `1`) |
+| `BOXNOW_DEFAULT_WEIGHT` | ⬜ optional | Default parcel weight in grams (default `0` = unknown) |
+| `BOXNOW_TRACKING_URL_TEMPLATE` | ⬜ optional | Public tracking URL, `{voucher}` is substituted |
+| `BOXNOW_VOUCHER_META_KEY` | ⬜ optional | WC order meta key holding the voucher (default `_boxnow_parcel_ids`) |
+| `BOXNOW_LOCKER_META_KEY` | ⬜ optional | WC order meta key holding the chosen locker (default `_boxnow_locker_id`) |
+
+> **Multi-site:** for every extra site in `sites.json`, add the five mapped variables you named there (e.g. `CRANKY_CRANKY_URL`, `CRANKY_CRANKY_CONSUMER_KEY`, `CRANKY_CRANKY_SECRET`, `CRANKY_CRANKY_WP_USER`, `CRANKY_CRANKY_WP_PASSWORD`). BOX NOW settings are global (not per-site).
+
 ### 5. Run
 
 Two terminals:
