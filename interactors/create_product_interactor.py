@@ -1,3 +1,5 @@
+from pprint import pprint
+
 from data_sources.data.products_data import ProductStore
 from data_sources.wc_products_adapter import WCProductsAdapter
 from data_sources.wp_image_adapter import WPImageAdapter
@@ -29,8 +31,6 @@ class CreateProductInteractor:
         """Pass through integer media IDs as-is. Look up strings as filenames."""
         if isinstance(value, int):
             return value
-        if isinstance(value, str) and value.isdigit():
-            return int(value)
         return self.wp_image_adapter.get_image_id_by_filename(value)
 
     def _resolve_taxonomy(self, value, lookup_fn):
@@ -96,6 +96,11 @@ if __name__ == "__main__":
             colors=p["product"]["colors"],
             sizes=p["product"]["sizes"],
         )
-        for var in variations:
-            print(var)
-            pr_interactor.create_variation(product_id=_product_obj["id"], variation_payload=var)
+        # for var in variations:
+        #     print(var)
+        #     pr_interactor.create_variation(product_id=_product_obj["id"], variation_payload=var)
+        pprint(variations)
+        with open("variations_output.json", "w") as f:
+            import json
+
+            json.dump(variations, f, indent=4)

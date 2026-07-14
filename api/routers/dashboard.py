@@ -118,27 +118,50 @@ def overview(wc: WCProductsAdapter = Depends(get_wc_adapter)):
 
 
 @router.get("/top-sellers")
-def top_sellers(limit: int = 10, wc: WCProductsAdapter = Depends(get_wc_adapter)):
-    """WooCommerce's `orderby=popularity` sorts by total_sales descending."""
-    response = wc.wc_api.get("products", params={
-        "orderby": "popularity",
-        "order": "desc",
-        "per_page": limit,
-        "status": "publish",
-    })
-    response.raise_for_status()
-    return [
-        {
-            "id": p["id"],
-            "name": p["name"],
-            "total_sales": int(p.get("total_sales") or 0),
-            "image": p["images"][0]["src"] if p.get("images") else None,
-            "permalink": p.get("permalink"),
-            "price": p.get("price"),
-            "type": p.get("type"),
-        }
-        for p in response.json()
-    ]
+def top_sellers(limit: int = 10, period: str = "all", wc: WCProductsAdapter = Depends(get_wc_adapter)):
+    """Compute top sellers from actual paid order line items (completed + processing).
+    WooCommerce's native total_sales counter is not decremented on cancellation/refund,
+    so we aggregate from real orders instead."""
+    after, before = _period_range(period)
+    orders = _fetch_orders(wc, after=after, before=before, statuses=DEFAULT_PAID_STATUSES)
+
+    # Aggregate units sold per parent product
+    counts: dict[int, dict] = {}
+    for o in orders:
+        for item in o.get("line_items") or []:
+            pid = item.get("product_id")
+            if not pid:
+                continue
+            qty = int(item.get("quantity") or 0)
+            if pid not in counts:
+                counts[pid] = {
+                    "id": pid,
+                    "name": item.get("name", ""),
+                    "total_sales": 0,
+                    "image": None,
+                    "permalink": None,
+                    "price": None,
+                    "type": None,
+                }
+            counts[pid]["total_sales"] += qty
+
+    top = sorted(counts.values(), key=lambda x: -x["total_sales"])[:limit]
+
+    # Enrich with product details (image, permalink, price, type)
+    for entry in top:
+        try:
+            r = wc.wc_api.get(f"products/{entry['id']}")
+            if r.ok:
+                p = r.json()
+                entry["image"] = p["images"][0]["src"] if p.get("images") else None
+                entry["permalink"] = p.get("permalink")
+                entry["price"] = p.get("price")
+                entry["type"] = p.get("type")
+                entry["name"] = p.get("name") or entry["name"]
+        except Exception:
+            pass
+
+    return top
 
 
 @router.get("/by-category")
@@ -352,7 +375,7 @@ def orders_heatmap(days: int = 90, wc: WCProductsAdapter = Depends(get_wc_adapte
     where matrix[0] = Monday, matrix[6] = Sunday."""
     after = datetime.now(timezone.utc) - timedelta(days=days)
     try:
-        orders = _fetch_orders(wc, after=after, before=None, statuses=None)
+        orders = _fetch_orders(wc, after=after, before=None, statuses=DEFAULT_PAID_STATUSES)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Could not fetch orders: {e}")
 

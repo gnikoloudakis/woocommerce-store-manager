@@ -153,8 +153,12 @@ ui/dist/
 ui/.vite/
 ui/*.local
 
-# Cached data dumps
+# Cached data dumps / generated scratch output
 data_sources/all_products.json
+all_products.json
+variations_output.json
+bulk_import.json
+blog_export.json
 
 # Local product images
 images/

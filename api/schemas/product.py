@@ -27,8 +27,8 @@ class UpdateProductRequest(BaseModel):
     name: Optional[str] = None
     short_description: Optional[str] = None
     status: Optional[str] = None
-    categories: Optional[List[str]] = None
-    tags: Optional[List[str]] = None
+    categories: Optional[List[Any]] = None   # str (name) OR {"id": int}
+    tags: Optional[List[Any]] = None          # str (name) OR {"id": int}
     main_image_ids: Optional[List[int]] = None
     colors: Optional[List[str]] = None
     sizes: Optional[List[str]] = None

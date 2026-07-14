@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react'
-import { useMutation } from '@tanstack/react-query'
 import { bulkCreateProducts } from '../api/client'
 import toast from 'react-hot-toast'
 
@@ -45,27 +44,18 @@ export default function BulkImportPage() {
   const [json, setJson] = useState('')
   const [parseError, setParseError] = useState(null)
   const [results, setResults] = useState(null)
+  const [progress, setProgress] = useState(null) // null | { current, total, name }
   const fileRef = useRef()
 
-  const mutation = useMutation({
-    mutationFn: bulkCreateProducts,
-    onSuccess: (data) => {
-      setResults(data)
-      const created = data.filter(r => r.status === 'created').length
-      const updated = data.filter(r => r.status === 'updated').length
-      const errors  = data.filter(r => r.status === 'error').length
-      const parts = []
-      if (created) parts.push(`${created} created`)
-      if (updated) parts.push(`${updated} updated`)
-      if (errors)  parts.push(`${errors} failed`)
-      const msg = parts.join(', ') || 'Nothing to do'
-      if (errors === 0) toast.success(msg)
-      else toast.error(msg)
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.detail ?? 'Import failed')
-    },
-  })
+  function parseJson(text) {
+    try {
+      const parsed = JSON.parse(text)
+      if (!Array.isArray(parsed)) throw new Error('Root must be a JSON array')
+      return parsed
+    } catch {
+      return null
+    }
+  }
 
   function validate(text) {
     try {
@@ -98,13 +88,45 @@ export default function BulkImportPage() {
     reader.readAsText(file)
   }
 
-  function handleImport() {
+  async function handleImport() {
     const parsed = validate(json)
     if (!parsed) return
-    mutation.mutate(parsed)
+
+    setResults(null)
+    const allResults = []
+
+    for (let i = 0; i < parsed.length; i++) {
+      const item = parsed[i]
+      setProgress({ current: i + 1, total: parsed.length, name: item.product.product_name })
+      try {
+        const res = await bulkCreateProducts([item])
+        allResults.push(...res)
+      } catch (err) {
+        allResults.push({
+          product_name: item.product.product_name,
+          status: 'error',
+          reason: err.response?.data?.detail ?? 'Import failed',
+        })
+      }
+    }
+
+    setProgress(null)
+    setResults(allResults)
+
+    const created = allResults.filter(r => r.status === 'created').length
+    const updated = allResults.filter(r => r.status === 'updated').length
+    const errors  = allResults.filter(r => r.status === 'error').length
+    const parts = []
+    if (created) parts.push(`${created} created`)
+    if (updated) parts.push(`${updated} updated`)
+    if (errors)  parts.push(`${errors} failed`)
+    const msg = parts.join(', ') || 'Nothing to do'
+    if (errors === 0) toast.success(msg)
+    else toast.error(msg)
   }
 
-  const parsed = json ? validate(json) : null
+  const isImporting = progress !== null
+  const parsed = json ? parseJson(json) : null
   const count = Array.isArray(parsed) ? parsed.length : 0
 
   const created = results?.filter(r => r.status === 'created').length ?? 0
@@ -114,6 +136,38 @@ export default function BulkImportPage() {
 
   return (
     <div className="max-w-4xl space-y-6">
+
+      {/* Progress blocker */}
+      {isImporting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-5 w-[380px]">
+            <svg className="animate-spin h-10 w-10 text-blue-600 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+
+            <div className="w-full text-center">
+              <p className="text-gray-900 font-semibold text-lg">Importing products…</p>
+              <p className="text-gray-500 text-sm mt-1">
+                {progress.current} of {progress.total}
+              </p>
+            </div>
+
+            {/* Progress bar */}
+            <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+              <div
+                className="bg-blue-600 h-2.5 rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${(progress.current / progress.total) * 100}%` }}
+              />
+            </div>
+
+            <p className="text-gray-600 text-sm text-center truncate w-full px-2" title={progress.name}>
+              {progress.name}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Bulk Import</h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -174,10 +228,10 @@ export default function BulkImportPage() {
           <button
             type="button"
             onClick={handleImport}
-            disabled={!json || !!parseError || count === 0 || mutation.isPending}
+            disabled={!json || !!parseError || count === 0 || isImporting}
             className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {mutation.isPending ? `Importing ${count} product${count !== 1 ? 's' : ''}…` : `Import ${count || ''} product${count !== 1 ? 's' : ''}`}
+            {isImporting ? `Importing…` : `Import ${count || ''} product${count !== 1 ? 's' : ''}`}
           </button>
         </div>
       </section>
