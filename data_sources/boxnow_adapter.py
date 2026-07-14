@@ -252,7 +252,7 @@ class BoxNowAdapter:
 
     # ── Voucher operations ──────────────────────────────────────────────
 
-    def _build_delivery_request(self, order: dict) -> dict:
+    def _build_delivery_request(self, order: dict, compartment_size: int | None = None) -> dict:
         locker_id = extract_locker_id_from_order(order)
         if not locker_id:
             raise BoxNowError(
@@ -271,6 +271,8 @@ class BoxNowAdapter:
 
         order_number = str(order.get("number") or order.get("id"))
         total = order.get("total") or "0.00"
+
+        size = compartment_size if compartment_size in (1, 2, 3) else self.default_compartment
 
         return {
             "orderNumber": order_number,
@@ -293,15 +295,16 @@ class BoxNowAdapter:
                 "id": "1",
                 "name": f"Order {order_number}",
                 "value": str(total),
-                "compartmentSize": self.default_compartment,
+                "compartmentSize": size,
                 "weight": self.default_weight,
             }],
         }
 
-    def create_voucher(self, order: dict) -> dict:
+    def create_voucher(self, order: dict, compartment_size: int | None = None) -> dict:
         """POST /api/v1/delivery-requests
+        compartment_size: 1=S, 2=M, 3=L (falls back to BOXNOW_DEFAULT_COMPARTMENT_SIZE).
         Returns: {voucher_number, delivery_request_id, raw}"""
-        payload = self._build_delivery_request(order)
+        payload = self._build_delivery_request(order, compartment_size=compartment_size)
         r = requests.post(
             f"{self.base_url}/api/v1/delivery-requests",
             headers=self._headers(),
