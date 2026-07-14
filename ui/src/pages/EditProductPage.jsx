@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchProduct, fetchVariations, updateProduct, updateVariation, deleteVariation, fetchSecretTags, setSecretTags } from '../api/client'
 import ProductForm from '../components/ProductForm'
@@ -317,7 +317,7 @@ export default function EditProductPage() {
   return (
     <div className="max-w-4xl space-y-8">
       <div className="flex items-center gap-3">
-        <Link to="/products" className="text-gray-400 hover:text-gray-700 text-sm">← Products</Link>
+        <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-gray-700 text-sm">← Products</button>
         <span className="text-gray-300">/</span>
         <h1 className="text-2xl font-bold text-gray-900">{product.name}</h1>
         <span className="text-sm text-gray-400 font-mono">#{product.id}</span>

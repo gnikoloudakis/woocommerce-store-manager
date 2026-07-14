@@ -14,14 +14,27 @@ _SECRET_TAG_RE = re.compile(
 
 
 class WCProductsAdapter:
-    def __init__(self):
+    def __init__(
+        self,
+        url: str | None = None,
+        consumer_key: str | None = None,
+        consumer_secret: str | None = None,
+    ):
+        # query_string_auth controls how credentials are sent:
+        #   False (default, recommended for HTTPS) → HTTP Basic Auth header
+        #   True  (legacy fallback for HTTP-only sites) → consumer_key/_secret as query params
+        # Many WP security plugins (Wordfence etc.) block query-string credentials on HTTPS and return 403.
+        # Override via env: WC_QUERY_STRING_AUTH=true (only if your store explicitly requires it).
+        use_query_string = (Config.get_param("WC_QUERY_STRING_AUTH") or "false").lower() in ("1", "true", "yes")
+
         self.wc_api = API(
-            url=Config.get_param("WC_URL"),
-            consumer_key=Config.get_param("CONSUMER_KEY"),
-            consumer_secret=Config.get_param("CONSUMER_SECRET"),
+            url=url or Config.get_param("WC_URL"),
+            consumer_key=consumer_key or Config.get_param("CONSUMER_KEY"),
+            consumer_secret=consumer_secret or Config.get_param("CONSUMER_SECRET"),
             version="wc/v3",
             wp_api=True,
-            query_string_auth=True,  # Set to True if you want to force HTTP Basic Authentication. Set to False for HTTPS
+            query_string_auth=use_query_string,
+            timeout=30,
         )
         self.all_products = self.list_all_products()
         self.all_categories = self._list_all_categories()
@@ -92,8 +105,9 @@ class WCProductsAdapter:
             print(f"❗ Product already exists: {product_payload.get('name')}")
             return False, None
         response = self.wc_api.post(_url, product_payload)
-        print(f"{response.text=}")
-        response.raise_for_status()
+        if not response.ok:
+            print(f"❗ Failed to create product '{product_payload.get('name')}': {response.text}")
+            return False, None
         product = response.json()
         print(f'✅ Product created: {product["name"]} (ID: {product["id"]})')
         return True, product
@@ -108,7 +122,6 @@ class WCProductsAdapter:
             print(f"❗ Variation already exists: {variation_payload.get('slug')}")
             return False, None
         response = self.wc_api.post(_url, variation_payload)
-        print(f"{response.text=}")
         response.raise_for_status()
         variation = response.json()
         print(f'✅ Variation created for product ID {product_id}: {variation["id"]}')
@@ -134,8 +147,16 @@ class WCProductsAdapter:
                 break
 
             for category in categories:
-                _all_categories.append({"id": category["id"], "name": category["name"], "slug": category["slug"]})
+                _all_categories.append({
+                    "id":     category["id"],
+                    "name":   category["name"],
+                    "slug":   category["slug"],
+                    "parent": category.get("parent", 0),
+                    "count":  category.get("count", 0),
+                })
 
+            if len(categories) < per_page:
+                break
             page += 1
 
         print(f"✅ Fetched {len(_all_categories)} total categories")
@@ -241,11 +262,6 @@ class WCProductsAdapter:
 
 if __name__ == "__main__":
     wc_adapter = WCProductsAdapter()
-    # for product in wc_adapter.all_products:
-    # print(json.dumps(product))
     dumped_data = json.dumps(wc_adapter.all_products, indent=4)
     with open("all_products.json", "w") as f:
         f.write(dumped_data)
-    # print("All Products:", wc_adapter.all_products)
-    # print("All Categories:", wc_adapter.all_categories)
-    # print("All Tags:", wc_adapter.all_tags)

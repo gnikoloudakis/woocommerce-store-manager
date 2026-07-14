@@ -150,7 +150,7 @@ export default function OrdersPage() {
           <span className="text-blue-900">
             Showing orders {rangeLabel
               ? <>from <strong>{rangeLabel}</strong></>
-              : <>between <strong>{dateAfter || '∞'}</strong> and <strong>{dateBefore || 'now'}</strong>}</>
+              : <>between <strong>{dateAfter || '∞'}</strong> and <strong>{dateBefore || 'now'}</strong></>
             }
           </span>
           <button

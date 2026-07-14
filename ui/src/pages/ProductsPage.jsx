@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { fetchProducts, deleteProduct, setSecretTags, fetchCategories, fetchTags } from '../api/client'
+import { Link, NavLink, useSearchParams } from 'react-router-dom'
+import { fetchProducts, deleteProduct, updateProduct, relinkImages, imageAudit, setSecretTags, fetchCategories, fetchTags } from '../api/client'
 import Lightbox from '../components/Lightbox'
 import toast from 'react-hot-toast'
 
@@ -114,6 +114,214 @@ function SecretTagsCell({ product }) {
   )
 }
 
+function CategoriesModal({ product, allCategories, onClose }) {
+  const qc = useQueryClient()
+  const current = product.categories ?? []
+  const [selected, setSelected] = useState(new Set(current.map(c => c.id)))
+
+  const mutation = useMutation({
+    mutationFn: (cats) => updateProduct(product.id, { categories: cats.map(c => ({ id: c.id })) }),
+    onSuccess: (updatedProduct) => {
+      qc.setQueriesData({ queryKey: ['products'] }, (old) => {
+        if (!old?.products) return old
+        return { ...old, products: old.products.map(p => p.id === product.id ? { ...p, categories: updatedProduct.categories } : p) }
+      })
+      toast.success('Categories saved')
+      onClose()
+    },
+    onError: () => toast.error('Failed to save categories'),
+  })
+
+  function toggle(id) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function save() {
+    const cats = allCategories.filter(c => selected.has(c.id))
+    mutation.mutate(cats)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b">
+          <h3 className="font-semibold text-gray-900 text-sm">Edit categories — <span className="font-normal text-gray-500">{product.name}</span></h3>
+        </div>
+        <div className="px-5 py-3 max-h-72 overflow-y-auto space-y-1">
+          {allCategories.length === 0 && <p className="text-sm text-gray-400">No categories found.</p>}
+          {allCategories.map(c => (
+            <label key={c.id} className="flex items-center gap-2.5 py-1 cursor-pointer hover:bg-gray-50 rounded px-1">
+              <input
+                type="checkbox"
+                checked={selected.has(c.id)}
+                onChange={() => toggle(c.id)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+              />
+              <span className="text-sm text-gray-700">{c.name}</span>
+            </label>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t flex justify-end gap-2">
+          <button onClick={onClose} disabled={mutation.isPending} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg disabled:opacity-50">Cancel</button>
+          <button onClick={save} disabled={mutation.isPending} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+            {mutation.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CategoriesCell({ product, allCategories }) {
+  const [open, setOpen] = useState(false)
+  const current = product.categories ?? []
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-1">
+        {current.length === 0
+          ? <span className="text-gray-300 text-xs">—</span>
+          : current.map(c => (
+              <span key={c.id} className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-1.5 py-0.5 rounded-full">
+                {c.name}
+              </span>
+            ))
+        }
+        <button onClick={() => setOpen(true)} className="text-xs text-gray-400 hover:text-gray-600 ml-1" title="Edit categories">
+          ✎
+        </button>
+      </div>
+      {open && (
+        <CategoriesModal product={product} allCategories={allCategories} onClose={() => setOpen(false)} />
+      )}
+    </>
+  )
+}
+
+function BulkCategoryModal({ products, allCategories, onClose, onComplete }) {
+  const qc = useQueryClient()
+  const [selected, setSelected] = useState(new Set())
+  const [mode, setMode] = useState('add') // 'add' | 'remove'
+  const [running, setRunning] = useState(false)
+  const [progress, setProgress] = useState(0)
+
+  function toggle(id) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  async function run() {
+    if (selected.size === 0) { toast.error('Select at least one category'); return }
+    setRunning(true)
+    let succeeded = 0, skipped = 0, failed = 0
+
+    for (const p of products) {
+      const existing = (p.categories ?? []).map(c => c.id)
+      let next
+
+      if (mode === 'add') {
+        const toAdd = [...selected].filter(id => !existing.includes(id))
+        if (toAdd.length === 0) { skipped++; setProgress(succeeded + skipped + failed); continue }
+        next = [...new Set([...existing, ...selected])]
+      } else {
+        const toRemove = [...selected].filter(id => existing.includes(id))
+        if (toRemove.length === 0) { skipped++; setProgress(succeeded + skipped + failed); continue }
+        next = existing.filter(id => !selected.has(id))
+      }
+
+      try {
+        await updateProduct(p.id, { categories: next.map(id => ({ id })) })
+        succeeded++
+      } catch { failed++ }
+      setProgress(succeeded + skipped + failed)
+    }
+
+    setRunning(false)
+    qc.invalidateQueries({ queryKey: ['products'] })
+    const parts = []
+    if (succeeded > 0) parts.push(`${succeeded} updated`)
+    if (skipped > 0)   parts.push(`${skipped} already done`)
+    if (failed > 0)    parts.push(`${failed} failed`)
+    if (failed === 0) toast.success(parts.join(', ') || 'Nothing to do')
+    else toast.error(parts.join(', '))
+    onComplete()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div className="px-5 py-4 border-b">
+          <h3 className="font-semibold text-gray-900">
+            Manage categories — {products.length} product{products.length !== 1 ? 's' : ''}
+          </h3>
+        </div>
+        <div className="px-5 py-3 space-y-3">
+          {/* Add / Remove toggle */}
+          <div className="flex gap-2">
+            {['add', 'remove'].map(m => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${mode === m ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              >
+                {m === 'add' ? 'Add to' : 'Remove from'}
+              </button>
+            ))}
+            <span className="text-sm text-gray-400 self-center">selected products</span>
+          </div>
+
+          {/* Category list */}
+          <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+            {allCategories.length === 0 && <p className="text-sm text-gray-400 p-3">No categories found.</p>}
+            {allCategories.map(c => (
+              <label key={c.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={selected.has(c.id)}
+                  onChange={() => toggle(c.id)}
+                  disabled={running}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                />
+                <span className="text-sm text-gray-700">{c.name}</span>
+              </label>
+            ))}
+          </div>
+
+          {running && (
+            <div>
+              <div className="flex justify-between text-xs text-gray-500 mb-1">
+                <span>Processing…</span><span>{progress} / {products.length}</span>
+              </div>
+              <div className="bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                <div className="bg-blue-600 h-full transition-all" style={{ width: `${(progress / products.length) * 100}%` }} />
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="px-5 py-3 border-t flex justify-end gap-2">
+          <button onClick={onClose} disabled={running} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg disabled:opacity-50">Cancel</button>
+          <button
+            onClick={run}
+            disabled={running || selected.size === 0}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            {running ? 'Working…' : `Apply to ${products.length} product${products.length !== 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function BulkSecretTagsModal({ products, onClose, onComplete }) {
   const qc = useQueryClient()
   const [tagsInput, setTagsInput] = useState('')
@@ -208,35 +416,156 @@ function BulkSecretTagsModal({ products, onClose, onComplete }) {
   )
 }
 
+function BulkRelinkModal({ products, onClose, onComplete }) {
+  const [running, setRunning] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [log, setLog] = useState([])
+
+  async function run() {
+    setRunning(true)
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i]
+      try {
+        const res = await relinkImages(p.id)
+        const fixed = res.fixed?.length ?? 0
+        const skipped = res.skipped?.length ?? 0
+        if (fixed > 0) setLog(l => [...l, `✓ ${p.name}: ${fixed} relinked${skipped ? `, ${skipped} skipped` : ''}`])
+      } catch {
+        setLog(l => [...l, `✗ ${p.name}: failed`])
+      }
+      setProgress(i + 1)
+    }
+    setRunning(false)
+    onComplete()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div className="px-5 py-4 border-b">
+          <h3 className="font-semibold text-gray-900">Relink images for {products.length} product{products.length !== 1 ? 's' : ''}</h3>
+          <p className="text-xs text-gray-400 mt-0.5">Replaces external image URLs with local media IDs to stop WooCommerce from re-downloading them on every save.</p>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {running && (
+            <div>
+              <div className="flex justify-between text-xs text-gray-500 mb-1">
+                <span>Processing…</span><span>{progress} / {products.length}</span>
+              </div>
+              <div className="bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                <div className="bg-purple-600 h-full transition-all" style={{ width: `${(progress / products.length) * 100}%` }} />
+              </div>
+            </div>
+          )}
+          {log.length > 0 && (
+            <div className="max-h-40 overflow-y-auto text-xs space-y-0.5 font-mono bg-gray-50 rounded p-2">
+              {log.map((l, i) => <div key={i} className={l.startsWith('✓') ? 'text-green-700' : 'text-red-600'}>{l}</div>)}
+            </div>
+          )}
+        </div>
+        <div className="px-5 py-3 border-t flex justify-end gap-2">
+          <button onClick={onClose} disabled={running} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg disabled:opacity-50">
+            {running ? 'Running…' : 'Close'}
+          </button>
+          {!running && log.length === 0 && (
+            <button onClick={run} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">
+              Run for {products.length} product{products.length !== 1 ? 's' : ''}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const PER_PAGE_OPTIONS = [20, 50, 100, -1] // -1 = All
 
+// Columns that WC API can sort server-side (orderby param values)
+const SERVER_SORT = { id: 'id', name: 'title', price: 'price' }
+// Columns sorted client-side (within the current page)
+const CLIENT_SORT = { type: 'type', status: 'status', sku: 'sku' }
+
+function SortableHeader({ label, field, sortBy, sortDir, onSort, className = '' }) {
+  const active = sortBy === field
+  return (
+    <th
+      className={`px-4 py-3 text-left cursor-pointer select-none hover:bg-gray-100 group ${className}`}
+      onClick={() => onSort(field)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <span className={`text-[10px] leading-none ${active ? 'text-blue-500' : 'text-gray-300 group-hover:text-gray-400'}`}>
+          {active ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+        </span>
+      </span>
+    </th>
+  )
+}
+
 export default function ProductsPage() {
-  const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20)
-  const [search, setSearch] = useState('')
-  const [searchInput, setSearchInput] = useState('')
-  const [filters, setFilters] = useState({ status: '', type: '', category: '', tag: '', stock_status: '' })
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // All pagination/filter/sort state lives in the URL so navigating back restores it
+  const page    = Number(searchParams.get('page')     ?? 1)
+  const perPage = Number(searchParams.get('per_page') ?? 20)
+  const search  = searchParams.get('search')   ?? ''
+  const sortBy  = searchParams.get('sort_by')  ?? ''
+  const sortDir = searchParams.get('sort_dir') ?? 'desc'
+  const filters = {
+    status:       searchParams.get('status')       ?? '',
+    type:         searchParams.get('type')         ?? '',
+    category:     searchParams.get('category')     ?? '',
+    tag:          searchParams.get('tag')           ?? '',
+    stock_status: searchParams.get('stock_status') ?? '',
+  }
+
+  // searchInput is ephemeral (unsubmitted text in the search box)
+  const [searchInput, setSearchInput] = useState(search)
   const [selectedIds, setSelectedIds] = useState(new Set())
-  const [bulkAction, setBulkAction] = useState(null) // 'secret-tags' | 'delete' | null
+  const [bulkAction, setBulkAction] = useState(null) // 'secret-tags' | 'delete' | 'relink' | null
   const [lightbox, setLightbox] = useState(null)     // {urls, startIndex} | null
+  const [audit, setAudit] = useState(null)           // null | 'loading' | result
+
+  function updateParams(updates, resetPage = false) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      Object.entries(updates).forEach(([k, v]) => {
+        if (v !== '' && v !== null && v !== undefined) next.set(k, String(v))
+        else next.delete(k)
+      })
+      if (resetPage) next.delete('page')
+      return next
+    }, { replace: true })
+  }
+
+  function setPage(p)    { updateParams({ page: p }) }
+  function setPerPage(n) { updateParams({ per_page: n }, true) }
+
   const qc = useQueryClient()
 
+  const isServerSort = sortBy in SERVER_SORT
+  const wcOrderby = isServerSort ? SERVER_SORT[sortBy] : 'date'
+  const wcOrder = isServerSort ? sortDir : 'desc'
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['products', page, perPage, search, filters],
-    queryFn: () => fetchProducts({ page, per_page: perPage, search, ...filters }),
+    queryKey: ['products', page, perPage, search, filters, sortBy, sortDir],
+    queryFn: () => fetchProducts({ page, per_page: perPage, search, orderby: wcOrderby, order: wcOrder, ...filters }),
   })
+
+  function handleSort(field) {
+    const newDir = sortBy === field ? (sortDir === 'asc' ? 'desc' : 'asc') : 'asc'
+    updateParams({ sort_by: field, sort_dir: newDir }, true)
+  }
 
   const { data: allCategories = [] } = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
   const { data: allTags = [] } = useQuery({ queryKey: ['tags'], queryFn: fetchTags })
 
   function setFilter(key, value) {
-    setFilters(prev => ({ ...prev, [key]: value }))
-    setPage(1)
+    updateParams({ [key]: value }, true)
   }
 
   function clearFilters() {
-    setFilters({ status: '', type: '', category: '', tag: '', stock_status: '' })
-    setPage(1)
+    updateParams({ status: '', type: '', category: '', tag: '', stock_status: '' }, true)
   }
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length
@@ -298,8 +627,7 @@ export default function ProductsPage() {
 
   function handleSearch(e) {
     e.preventDefault()
-    setSearch(searchInput)
-    setPage(1)
+    updateParams({ search: searchInput }, true)
   }
 
   function confirmDelete(product) {
@@ -308,15 +636,34 @@ export default function ProductsPage() {
     }
   }
 
-  const products = data?.products ?? []
+  const rawProducts = data?.products ?? []
   const totalPages = data?.total_pages ?? 1
   const total = data?.total ?? 0
+
+  // Client-side sort for fields WC doesn't sort server-side
+  const products = (() => {
+    const field = CLIENT_SORT[sortBy]
+    if (!field) return rawProducts
+    return [...rawProducts].sort((a, b) => {
+      const av = (a[field] ?? '').toString().toLowerCase()
+      const bv = (b[field] ?? '').toString().toLowerCase()
+      const cmp = av.localeCompare(bv)
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  })()
+
   const selectedProducts = products.filter(p => selectedIds.has(p.id))
   const allOnPageSelected = products.length > 0 && products.every(p => selectedIds.has(p.id))
   const someOnPageSelected = products.some(p => selectedIds.has(p.id)) && !allOnPageSelected
 
   return (
     <div className="space-y-6">
+      {/* Sub-tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        <NavLink to="/products" end className={({ isActive }) => `px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${isActive ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Products</NavLink>
+        <NavLink to="/categories"   className={({ isActive }) => `px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${isActive ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Categories</NavLink>
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
@@ -348,7 +695,7 @@ export default function ProductsPage() {
         {search && (
           <button
             type="button"
-            onClick={() => { setSearch(''); setSearchInput(''); setPage(1) }}
+            onClick={() => { setSearchInput(''); updateParams({ search: '' }, true) }}
             className="px-3 py-2 text-sm text-gray-400 hover:text-gray-700"
           >
             Clear
@@ -427,6 +774,38 @@ export default function ProductsPage() {
         )}
       </div>
 
+      {/* Image audit */}
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={async () => { setAudit('loading'); setAudit(await imageAudit()) }}
+          disabled={audit === 'loading'}
+          className="px-3 py-1.5 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+        >
+          {audit === 'loading' ? 'Scanning…' : 'Audit numeric images'}
+        </button>
+        {audit && audit !== 'loading' && (
+          <span className={`text-xs ${audit.flagged_count > 0 ? 'text-red-600 font-medium' : 'text-green-600'}`}>
+            {audit.flagged_count === 0
+              ? `✓ No numeric-filename images found (${audit.total_scanned} scanned)`
+              : `⚠ ${audit.flagged_count} product${audit.flagged_count !== 1 ? 's' : ''} have numeric images (${audit.total_scanned} scanned)`}
+          </span>
+        )}
+        {audit && audit !== 'loading' && (
+          <button onClick={() => setAudit(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+        )}
+      </div>
+      {audit && audit !== 'loading' && audit.products?.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs space-y-1 max-h-48 overflow-y-auto">
+          {audit.products.map(p => (
+            <div key={p.id} className="flex gap-2">
+              <span className="text-gray-500 font-mono shrink-0">#{p.id}</span>
+              <span className="font-medium text-gray-800">{p.name}</span>
+              <span className="text-red-500 ml-auto shrink-0">{p.images.join(', ')}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Bulk actions toolbar */}
       {selectedIds.size > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center justify-between">
@@ -443,10 +822,23 @@ export default function ProductsPage() {
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setBulkAction('categories')}
+              className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600 transition-colors"
+            >
+              Categories
+            </button>
+            <button
               onClick={() => setBulkAction('secret-tags')}
               className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-xs font-medium hover:bg-yellow-600 transition-colors"
             >
               Add secret tags
+            </button>
+            <button
+              onClick={() => setBulkAction('relink')}
+              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 transition-colors"
+              title="Replace external image URLs with local media IDs to prevent WooCommerce from re-downloading them"
+            >
+              Relink images
             </button>
             <button
               onClick={() => bulkDelete(Array.from(selectedIds).map(id => products.find(p => p.id === id)).filter(Boolean))}
@@ -458,11 +850,26 @@ export default function ProductsPage() {
         </div>
       )}
 
+      {bulkAction === 'categories' && (
+        <BulkCategoryModal
+          products={selectedProducts}
+          allCategories={allCategories}
+          onClose={() => setBulkAction(null)}
+          onComplete={() => { setBulkAction(null); clearSelection() }}
+        />
+      )}
       {bulkAction === 'secret-tags' && (
         <BulkSecretTagsModal
           products={selectedProducts}
           onClose={() => setBulkAction(null)}
           onComplete={() => { setBulkAction(null); clearSelection() }}
+        />
+      )}
+      {bulkAction === 'relink' && (
+        <BulkRelinkModal
+          products={selectedProducts}
+          onClose={() => setBulkAction(null)}
+          onComplete={() => { toast.success('Relink complete'); setBulkAction(null); clearSelection() }}
         />
       )}
 
@@ -498,12 +905,13 @@ export default function ProductsPage() {
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-400 cursor-pointer"
                   />
                 </th>
-                <th className="px-4 py-3 text-left">ID</th>
-                <th className="px-4 py-3 text-left">Name</th>
-                <th className="px-4 py-3 text-left">Type</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Price</th>
-                <th className="px-4 py-3 text-left">SKU</th>
+                <SortableHeader label="ID"     field="id"     sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader label="Name"   field="name"   sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader label="Type"   field="type"   sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader label="Status" field="status" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader label="Price"  field="price"  sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                <SortableHeader label="SKU"    field="sku"    sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                <th className="px-4 py-3 text-left">Categories</th>
                 <th className="px-4 py-3 text-left">Secret Tags</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
@@ -546,9 +954,6 @@ export default function ProductsPage() {
                       )}
                       <div>
                         <p className="font-medium text-gray-900 leading-tight">{p.name}</p>
-                        {p.categories?.length > 0 && (
-                          <p className="text-xs text-gray-400">{p.categories.map(c => c.name).join(', ')}</p>
-                        )}
                       </div>
                     </div>
                   </td>
@@ -561,7 +966,16 @@ export default function ProductsPage() {
                   <td className="px-4 py-3 text-gray-700">
                     {p.price ? `€${p.price}` : p.price_html ? <span dangerouslySetInnerHTML={{ __html: p.price_html }} /> : '—'}
                   </td>
-                  <td className="px-4 py-3 text-gray-400 font-mono text-xs">{p.sku || '—'}</td>
+                  <td className="px-4 py-3 font-mono text-xs">
+                    {p.sku
+                      ? <span className="text-gray-500">{p.sku}</span>
+                      : p.type === 'variable'
+                        ? <span className="text-gray-300 italic not-italic font-sans text-[11px]">by variation</span>
+                        : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <CategoriesCell product={p} allCategories={allCategories} />
+                  </td>
                   <td className="px-4 py-3">
                     <SecretTagsCell product={p} />
                   </td>
@@ -623,7 +1037,7 @@ export default function ProductsPage() {
               Per page:
               <select
                 value={perPage}
-                onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }}
+                onChange={e => setPerPage(Number(e.target.value))}
                 className="border border-gray-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
               >
                 {PER_PAGE_OPTIONS.map(n => (
@@ -636,7 +1050,7 @@ export default function ProductsPage() {
           {perPage !== -1 && totalPages > 1 && (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
+                onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page === 1}
                 className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-40 hover:bg-gray-50"
               >
@@ -644,7 +1058,7 @@ export default function ProductsPage() {
               </button>
               <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
               <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
                 className="px-3 py-1.5 border border-gray-300 rounded text-sm disabled:opacity-40 hover:bg-gray-50"
               >
