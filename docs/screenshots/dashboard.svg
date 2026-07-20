@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="420" viewBox="0 0 1000 420" role="img" aria-label="Dashboard — screenshot placeholder">
+  <rect width="1000" height="420" rx="14" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+  <rect x="0" y="0" width="1000" height="54" fill="#1e293b"/>
+  <rect x="0" y="40" width="1000" height="14" fill="#1e293b"/>
+  <circle cx="26" cy="27" r="6" fill="#ef4444"/><circle cx="48" cy="27" r="6" fill="#f59e0b"/><circle cx="70" cy="27" r="6" fill="#22c55e"/>
+  <text x="106" y="32" font-family="ui-sans-serif,system-ui,Arial" font-size="14" fill="#94a3b8">WooCommerce Store Manager · Dashboard</text>
+  <rect x="40" y="86" width="210" height="86" rx="10" fill="#eef2ff" stroke="#e2e8f0"/>
+  <rect x="270" y="86" width="210" height="86" rx="10" fill="#eef2ff" stroke="#e2e8f0"/>
+  <rect x="500" y="86" width="210" height="86" rx="10" fill="#eef2ff" stroke="#e2e8f0"/>
+  <rect x="730" y="86" width="230" height="86" rx="10" fill="#eef2ff" stroke="#e2e8f0"/>
+  <rect x="40" y="196" width="560" height="184" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <polyline points="70,340 150,300 230,318 310,250 390,278 470,214 550,236" fill="none" stroke="#3b82f6" stroke-width="3"/>
+  <rect x="620" y="196" width="340" height="184" rx="10" fill="#f1f5f9" stroke="#e2e8f0"/>
+  <text x="500" y="150" text-anchor="middle" font-family="ui-sans-serif,system-ui,Arial" font-size="26" font-weight="700" fill="#334155">Dashboard</text>
+  <text x="500" y="176" text-anchor="middle" font-family="ui-sans-serif,system-ui,Arial" font-size="13" fill="#94a3b8">placeholder — replace with docs/screenshots/dashboard.png</text>
+</svg>

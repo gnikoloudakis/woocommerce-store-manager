@@ -539,7 +539,7 @@ def relink_images(
         raise HTTPException(status_code=404, detail="Product not found")
 
     import re as _re
-    media_by_filename = {m["url"].split("/")[-1].split("?")[0]: m["id"] for m in wp.all_media}
+    media_by_filename = {m["url"].split("/")[-1].split("?")[0]: m["id"] for m in wp.ensure_media_loaded()}
     # Also index by base name (strip WordPress's -N dedup suffix: "1-1.jpg" → "1.jpg")
     dedup_re = _re.compile(r'^(.*)-\d+(\.[^.]+)$')
     media_by_base: dict[str, int] = {}

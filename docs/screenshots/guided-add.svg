@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="500" viewBox="0 0 900 500" role="img" aria-label="Guided bulk add — screenshot placeholder">
+  <rect width="900" height="500" rx="14" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+  <rect x="0" y="0" width="900" height="54" fill="#1e293b"/>
+  <circle cx="26" cy="27" r="6" fill="#ef4444"/><circle cx="48" cy="27" r="6" fill="#f59e0b"/><circle cx="70" cy="27" r="6" fill="#22c55e"/>
+  <text x="106" y="32" font-family="ui-sans-serif,system-ui,Arial" font-size="14" fill="#94a3b8">Add Products · Guided</text>
+  <!-- stepper -->
+  <circle cx="70" cy="92" r="12" fill="#2563eb"/><text x="70" y="97" text-anchor="middle" font-size="12" fill="#fff" font-family="Arial">1</text>
+  <text x="90" y="97" font-family="Arial" font-size="13" fill="#334155">Add products</text>
+  <circle cx="250" cy="92" r="12" fill="#e2e8f0"/><text x="250" y="97" text-anchor="middle" font-size="12" fill="#64748b" font-family="Arial">2</text>
+  <text x="270" y="97" font-family="Arial" font-size="13" fill="#94a3b8">Review &amp; import</text>
+  <!-- product cards -->
+  <rect x="40" y="126" width="820" height="120" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="60" y="146" width="380" height="30" rx="6" fill="#f1f5f9"/>
+  <rect x="60" y="188" width="70" height="46" rx="6" fill="#eef2ff"/><rect x="138" y="188" width="70" height="46" rx="6" fill="#eef2ff"/><rect x="216" y="188" width="70" height="46" rx="6" fill="#eef2ff"/>
+  <rect x="470" y="146" width="390" height="88" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+  <rect x="40" y="262" width="820" height="120" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="60" y="282" width="380" height="30" rx="6" fill="#f1f5f9"/>
+  <rect x="60" y="324" width="70" height="46" rx="6" fill="#eef2ff"/><rect x="138" y="324" width="70" height="46" rx="6" fill="#eef2ff"/>
+  <text x="450" y="430" text-anchor="middle" font-family="ui-sans-serif,system-ui,Arial" font-size="24" font-weight="700" fill="#334155">Guided bulk add</text>
+  <text x="450" y="456" text-anchor="middle" font-family="ui-sans-serif,system-ui,Arial" font-size="13" fill="#94a3b8">placeholder — replace with docs/screenshots/guided-add.png</text>
+</svg>

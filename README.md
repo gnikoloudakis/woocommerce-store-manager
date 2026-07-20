@@ -1,106 +1,166 @@
-# WooCommerce Store Manager (multi-site)
+# 🛍️ WooCommerce Store Manager
 
-A self-hosted admin panel for managing one or more WooCommerce stores from a single browser tab. A site selector in the nav bar lets you switch between configured sites; every page (Dashboard, Products, Orders, Coupons, Categories, Taxonomy, Imports/Exports) re-fetches data for the selected store. FastAPI backend that wraps the WooCommerce REST API, the WordPress Media/Posts APIs, and a couple of niche integrations, plus a React UI for everything you'd normally do across a dozen WP-admin pages.
+> A self-hosted admin panel for running one or more WooCommerce stores from a single browser tab — products, orders, coupons, analytics, and full **site-to-site migration**.
 
-Beyond day-to-day store admin, it can **migrate a whole store to another site** — products, variations, orders, customers, coupons, taxes, shipping, blog posts, media, and store/email settings — with upsert semantics and URL rewriting.
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?logo=tailwindcss&logoColor=white)
+![Multi-site](https://img.shields.io/badge/multi--site-ready-16a34a)
 
-Built originally to replace a hardcoded `ProductStore` Python script with something you can actually drive from a browser.
+A FastAPI backend wraps the WooCommerce REST API, the WordPress Media/Posts APIs, and a couple of niche integrations; a React UI gives you everything you'd normally do across a dozen WP-admin pages. A site selector in the nav bar switches between configured stores — every page re-fetches for the active site.
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.svg" alt="Dashboard" width="100%">
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/guided-add.svg" alt="Guided bulk add"></td>
+    <td width="50%"><img src="docs/screenshots/products.svg" alt="Products list"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/order-boxnow.svg" alt="Order detail with BOX NOW"></td>
+    <td width="50%"><img src="docs/screenshots/migration.svg" alt="Site-to-site migration"></td>
+  </tr>
+</table>
+
+> 📸 The images above are placeholders. See the [screenshots guide](docs/screenshots/README.md) for the shot-list and how to drop in real captures.
+
+---
+
+## Table of contents
+
+- [Highlights](#highlights)
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+  - [Environment variables](#environment-variables)
+  - [Run](#run)
+- [Project structure](#project-structure)
+- [API surface](#api-surface)
+- [Bulk import format](#bulk-import-format)
+- [Notes](#notes)
+- [Development](#development)
+
+---
+
+## Highlights
+
+- 🧙 **Guided bulk add** — a visual, step-by-step wizard to create many variable products at once (colors × sizes, per-variation price/stock/images), plus a raw JSON importer.
+- 🔁 **Site-to-site migration** — copy products, orders, customers, coupons, taxes, shipping, blog posts, media, and store/email settings between stores, with upsert + URL rewriting.
+- 📊 **Analytics dashboard** — revenue/orders/AOV with period comparisons, sales trends, an order heatmap, top sellers/customers, and low-stock/expiring-coupon alerts.
+- 📦 **BOX NOW shipping** — create/cancel/track parcel-locker vouchers (pick S/M/L) straight from an order, with a webhook receiver.
+- 🖼️ **Image hygiene** — de-duplicated uploads and image audit/relink so WooCommerce stops sideloading copies.
+- 🌐 **Multi-site** — one UI, many stores, credentials resolved per site from `.env`.
+
+---
 
 ## Features
 
-**Products**
-- Browse / search / filter products (status, type, category, tag, stock)
+<details open>
+<summary><strong>Products</strong></summary>
+
+- Browse / search / filter by status, type, category, tag, stock
 - Per-page selector (20 / 50 / 100 / All) with server-side pagination
-- Create variable products with size/color variations, per-variation pricing, and per-variation images
-- Edit metadata, categories, tags, status, prices; manage main images independently with a media-library picker and lightbox preview
-- Bulk import from a JSON array (upsert: existing products are updated, new ones are created — variations and long descriptions preserved on update)
-- Row selection with bulk actions: append secret tags to many products at once, bulk delete
-- Image hygiene tools: **image audit** (flags products whose images have suspicious numeric/external filenames) and **relink images** (swaps external image URLs for local WP media by filename match, so WooCommerce stops re-sideloading on every save)
+- Create variable products with size/color variations, per-variation pricing, stock, and images
+- Edit metadata, categories, tags, status, prices; manage main images with a media-library picker + lightbox
+- **Guided bulk add** wizard *and* JSON bulk import (upsert: existing products are updated, new ones created — variations and long descriptions preserved on update)
+- Row selection with bulk actions: append secret tags to many products, bulk delete
+- Image hygiene: **image audit** (flags suspicious numeric/external filenames) and **relink images** (swaps external URLs for local WP media by filename)
+</details>
 
-**Categories, tags & attributes**
-- Dedicated Categories page: list, create, edit, delete product categories
-- Taxonomy page: manage global attributes and their terms (e.g. Color, Size), plus tags — full CRUD
+<details>
+<summary><strong>Categories, tags &amp; attributes</strong></summary>
 
-**Secret tags**
+- Categories page: list, create, edit, delete
+- Taxonomy page: manage global attributes and their terms (e.g. Color, Size) plus tags — full CRUD
+- Create a category or tag inline while adding products
+</details>
+
+<details>
+<summary><strong>Secret tags</strong></summary>
+
 - Hidden internal-only tags stored as a `<span style="display:none">` inside the product description
 - Searchable from the WooCommerce admin; invisible to customers
-- Editable inline in the products table, in the product edit page, and via bulk operations
+- Editable inline in the table, on the edit page, and via bulk operations
+</details>
 
-**Coupons**
-- List, create, edit, delete WooCommerce coupons
-- Full modal covering discount type, amount, expiry, usage limits, product/category/email restrictions, and behavior flags (individual use, free shipping, exclude sale items)
+<details>
+<summary><strong>Orders &amp; BOX NOW</strong></summary>
 
-**Orders**
-- List with status filter, search, inline status changes
-- Order detail page with line items, billing, shipping, customer notes, and internal notes (read + add)
-- Filter orders by URL-driven date range (used by dashboard chart drill-down)
+- Order list with status filter, search, inline status changes; date-range filter (dashboard drill-down)
+- Order detail: line items, billing, shipping, customer + internal notes
+- **BOX NOW** (Greek parcel-locker network): Partner API v7.2 client — OAuth2, create voucher (choose compartment size S/M/L), cancel, track, fetch PDF/ZPL label
+- Voucher persisted to WC order meta; order notes on create/cancel/webhook events
+- Webhook receiver at `POST /api/orders/boxnow/webhook`
+</details>
 
-**BOX NOW integration** (Greek parcel locker network)
-- Full Partner API v7.2 client: OAuth2 auth, create voucher, cancel, get state, fetch PDF/ZPL label
-- Voucher number persisted to WC order meta in the format expected by the upstream WordPress plugin
-- Order notes added on create / cancel / webhook events
-- Webhook receiver at `POST /api/orders/boxnow/webhook` for parcel state changes
-- Tolerant voucher extraction: handles list-formatted values, multiple meta key variants, and heuristic 10-digit detection
+<details>
+<summary><strong>Coupons</strong></summary>
 
-**Dashboard**
-- KPI cards for total products, stock status, stock value, period revenue / orders / AOV / refunds
-- Period selector: this week / month / last month / year / all time, with period-over-period delta percentages
-- "Needs your attention" widget: orders to ship, expiring coupons, low-stock products
-- Sales trend (daily bars, auto-switches to monthly buckets for year/all-time)
-- Orders per month line chart with clickable dots that drill down to the orders list
-- Day-of-week × hour heatmap of order timing
-- Top sellers, top customers, active coupons widget
-- Distribution charts: products per category / tag / secret tag
-- Out-of-stock list and recent orders feed
-- Compact / comfortable density toggle (persisted)
-- Quick-action buttons: New Product, New Coupon, Bulk Import, Refresh
+- List, create, edit, delete coupons
+- Full modal: discount type, amount, expiry, usage limits, product/category/email restrictions, behavior flags (individual use, free shipping, exclude sale items)
+</details>
 
-**Site-to-site migration (Imports / Exports page)**
-- Copy content between any two configured sites, driven from one screen with live progress
-- **Blog:** export WordPress posts (with categories, tags, featured images) and import into a target site — upsert by slug, image URLs re-hosted and rewritten, missing categories/tags created
-- **Media:** export the WP media library and import into another site, deduplicating by filename + title (optional overwrite)
-- **WooCommerce data:** products + variations, coupons, orders, customers, tax classes/rates, shipping zones/methods/classes, and store + email settings
-- **Taxonomy sync:** replicate attributes, shipping classes, categories, and tags to the target before importing products
-- Upsert everywhere (by SKU / name / slug / email / code), with ID-mapping helpers and resilient fallbacks (e.g. an order that fails with unresolvable coupons/line items is retried stripped down)
+<details>
+<summary><strong>Dashboard</strong></summary>
+
+- KPI cards: total products, stock status, stock value, period revenue / orders / AOV / refunds
+- Period selector (week / month / last month / year / all) with period-over-period deltas
+- "Needs your attention": orders to ship, expiring coupons, low stock
+- Sales trend (daily → monthly buckets), orders-per-month chart with drill-down, day×hour heatmap
+- Top sellers, top customers, active coupons, per-category/tag/secret-tag distributions
+- Out-of-stock list, recent orders, density toggle, quick actions
+</details>
+
+<details>
+<summary><strong>Site-to-site migration (Imports / Exports)</strong></summary>
+
+- Copy content between any two configured sites from one screen, with live progress
+- **Blog:** posts (+ categories, tags, featured images) — upsert by slug, images re-hosted & rewritten
+- **Media:** WP media library, de-duplicated by filename + title (optional overwrite)
+- **WooCommerce:** products + variations, coupons, orders, customers, tax classes/rates, shipping, store + email settings
+- **Taxonomy sync:** attributes, shipping classes, categories, tags → target before importing products
+- Upsert everywhere (SKU / name / slug / email / code) with ID-mapping helpers and resilient fallbacks
+</details>
+
+---
 
 ## Tech stack
 
-| Layer    | Stack                                          |
-|----------|------------------------------------------------|
-| Backend  | Python 3.12, FastAPI, Pydantic 2, `woocommerce` SDK |
-| Frontend | React 18 + Vite, TanStack Query, React Router, Tailwind CSS, `react-hot-toast` |
-| External | WooCommerce REST API v3, WP Media API, BOX NOW Partner API v7.2 |
+| Layer | Stack |
+|-------|-------|
+| Backend | Python 3.12 · FastAPI · Pydantic 2 · `woocommerce` SDK |
+| Frontend | React 18 + Vite · TanStack Query · React Router · Tailwind CSS · `react-hot-toast` |
+| External | WooCommerce REST API v3 · WP Media/Posts API · BOX NOW Partner API v7.2 |
 
-## Setup
+---
 
-### Prerequisites
+## Getting started
 
-- Python 3.12 (the project uses `.venv/` with 3.12)
-- Node 18+
-- A WooCommerce store with:
-  - REST API keys (`Consumer Key` + `Consumer Secret`) with read/write permission on products, orders, coupons, and reports
-  - A WordPress application password for media uploads
+**Prerequisites**
 
-### 1. Install Python dependencies
+- Python 3.12 · Node 18+
+- A WooCommerce store with REST API keys (Consumer Key + Secret, read/write on products, orders, coupons, reports) and a WordPress **application password** for media uploads
+
+**Install**
 
 ```bash
+# backend
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
+# frontend
+cd ui && npm install
 ```
 
-### 2. Install JS dependencies
+**Configure sites** — sites are declared in `sites.json`, which maps field names to `.env` variable names (credentials never live in the JSON).
 
-```bash
-cd ui
-npm install
-```
-
-### 3. Configure sites
-
-Sites are declared in **`sites.json`** at the project root. Each entry maps field names to `.env` variable names — credentials are never stored in the JSON file itself.
-
-The file already contains two example sites. To add a third site:
+<details>
+<summary>Add another site</summary>
 
 ```json
 {
@@ -116,8 +176,6 @@ The file already contains two example sites. To add a third site:
 }
 ```
 
-Then add the corresponding values to `.env`:
-
 ```bash
 MY_SITE_URL=https://my-new-site.example.com
 MY_SITE_WP_USER=admin
@@ -126,101 +184,96 @@ MY_SITE_CONSUMER_KEY=ck_...
 MY_SITE_CONSUMER_SECRET=cs_...
 ```
 
-Restart the backend — the new site will appear in the nav selector immediately.
+Restart the backend — the new site appears in the nav selector.
+</details>
 
-### 4. Configure environment
+### Environment variables
 
-Create `.env` in the project root with credentials for every site listed in `sites.json`:
+Create `.env` in the project root. **The default site** uses the unprefixed names; extra sites use the names you map in `sites.json`.
+
+**WooCommerce + WordPress (per site)**
+
+| Variable | Required | Purpose |
+|----------|:--------:|---------|
+| `WC_URL` | ✅ | Store base URL, e.g. `https://cranky.gr` |
+| `CONSUMER_KEY` | ✅ | WooCommerce REST consumer key (read/write on products, orders, coupons, reports) |
+| `CONSUMER_SECRET` | ✅ | WooCommerce REST consumer secret |
+| `WP_USER` | ✅ for media | WordPress username (media library / uploads) |
+| `WP_PASSWORD` | ✅ for media | WordPress **application password** (Users → Profile → Application Passwords) |
+| `WC_QUERY_STRING_AUTH` | ⬜ | `true` to force query-string auth if your host strips the Basic-auth header (default `false`) |
+
+**BOX NOW** — only if you use the parcel-locker integration:
+
+| Variable | Required | Purpose |
+|----------|:--------:|---------|
+| `BOXNOW_API_URL` | ✅* | API base — `https://api-stage.boxnow.gr` (staging) or the production URL |
+| `BOXNOW_CLIENT_ID` | ✅* | OAuth2 client id (Partner API) |
+| `BOXNOW_CLIENT_SECRET` | ✅* | OAuth2 client secret |
+| `BOXNOW_WAREHOUSE_ID` | ✅* | Origin pickup-point `locationId` |
+| `BOXNOW_WAREHOUSE_CONTACT_NAME` / `_EMAIL` / `_PHONE` | ✅* | Origin contact (phone in full international format, `+30…`) |
+| `BOXNOW_DEFAULT_COMPARTMENT_SIZE` | ⬜ | Default parcel size `1`=S, `2`=M, `3`=L (default `1`) |
+| `BOXNOW_DEFAULT_WEIGHT` | ⬜ | Default weight in grams (default `0`) |
+| `BOXNOW_TRACKING_URL_TEMPLATE` | ⬜ | Public tracking URL; `{voucher}` is substituted |
+| `BOXNOW_VOUCHER_META_KEY` | ⬜ | Order meta key holding the voucher (default `_boxnow_parcel_ids`) |
+| `BOXNOW_LOCKER_META_KEY` | ⬜ | Order meta key holding the chosen locker (default `_boxnow_locker_id`) |
+
+<sub>✅* = required only when the BOX NOW integration is used. BOX NOW settings are global (not per-site).</sub>
+
+<details>
+<summary>Example <code>.env</code></summary>
 
 ```bash
-# ── Site 1: cranky.gr ────────────────────────────────────────────────────────
+# ── Site 1: cranky.gr ───────────────────────────────
 WC_URL=https://cranky.gr
 CONSUMER_KEY=ck_...
 CONSUMER_SECRET=cs_...
 WP_USER=admin
 WP_PASSWORD=xxxx xxxx xxxx xxxx xxxx xxxx
 
-# ── Site 2: cranky.cranky.gr ─────────────────────────────────────────────────
+# ── Site 2: cranky.cranky.gr ────────────────────────
 CRANKY_CRANKY_URL=https://cranky.cranky.gr
 CRANKY_CRANKY_CONSUMER_KEY=ck_...
 CRANKY_CRANKY_SECRET=cs_...
 CRANKY_CRANKY_WP_USER=admin
 CRANKY_CRANKY_WP_PASSWORD=xxxx xxxx xxxx xxxx xxxx xxxx
 
-# ── BOX NOW (optional — only if using the locker integration) ─────────────────
-BOXNOW_API_URL=https://api-stage.boxnow.gr      # or production URL
+# ── BOX NOW (optional) ──────────────────────────────
+BOXNOW_API_URL=https://api-stage.boxnow.gr
 BOXNOW_CLIENT_ID=
 BOXNOW_CLIENT_SECRET=
-BOXNOW_WAREHOUSE_ID=                            # your pickup point locationId
+BOXNOW_WAREHOUSE_ID=
 BOXNOW_WAREHOUSE_CONTACT_NAME=
 BOXNOW_WAREHOUSE_CONTACT_EMAIL=
-BOXNOW_WAREHOUSE_CONTACT_PHONE=+30...           # full international format
-BOXNOW_LOCKER_META_KEY=_boxnow_locker_id        # the meta key your WP plugin uses
+BOXNOW_WAREHOUSE_CONTACT_PHONE=+30...
+BOXNOW_LOCKER_META_KEY=_boxnow_locker_id
 BOXNOW_VOUCHER_META_KEY=_boxnow_parcel_ids
-BOXNOW_DEFAULT_COMPARTMENT_SIZE=1               # 1=S, 2=M, 3=L
-BOXNOW_DEFAULT_WEIGHT=0                         # grams; 0 = unknown
+BOXNOW_DEFAULT_COMPARTMENT_SIZE=1
+BOXNOW_DEFAULT_WEIGHT=0
 BOXNOW_TRACKING_URL_TEMPLATE=https://t.boxnow.gr/?track={voucher}
 ```
 
-#### Required environment variables
+> For every extra site in `sites.json`, add the five mapped variables you named there.
+</details>
 
-Per site (the **default** site reads the unprefixed names; extra sites use the names you map in `sites.json`):
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `WC_URL` | ✅ | Store base URL, e.g. `https://cranky.gr` |
-| `CONSUMER_KEY` | ✅ | WooCommerce REST API consumer key (read/write on products, orders, coupons, reports) |
-| `CONSUMER_SECRET` | ✅ | WooCommerce REST API consumer secret |
-| `WP_USER` | ✅ for media | WordPress username (image upload / media library) |
-| `WP_PASSWORD` | ✅ for media | WordPress **application password** (Users → Profile → Application Passwords) |
-| `WC_QUERY_STRING_AUTH` | ⬜ optional | `true` to force query-string auth if your host strips the Basic-auth header (default `false`) |
-
-BOX NOW locker shipping — **only required if you use the BOX NOW integration**; leave unset otherwise:
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `BOXNOW_API_URL` | ✅ for BOX NOW | API base — `https://api-stage.boxnow.gr` (staging) or the production URL |
-| `BOXNOW_CLIENT_ID` | ✅ for BOX NOW | OAuth2 client id (Partner API) |
-| `BOXNOW_CLIENT_SECRET` | ✅ for BOX NOW | OAuth2 client secret |
-| `BOXNOW_WAREHOUSE_ID` | ✅ for BOX NOW | Origin pickup-point `locationId` |
-| `BOXNOW_WAREHOUSE_CONTACT_NAME` | ✅ for BOX NOW | Origin contact name |
-| `BOXNOW_WAREHOUSE_CONTACT_EMAIL` | ✅ for BOX NOW | Origin contact email |
-| `BOXNOW_WAREHOUSE_CONTACT_PHONE` | ✅ for BOX NOW | Origin contact phone (full international format, e.g. `+30…`) |
-| `BOXNOW_DEFAULT_COMPARTMENT_SIZE` | ⬜ optional | Default parcel size `1`=S, `2`=M, `3`=L (default `1`) |
-| `BOXNOW_DEFAULT_WEIGHT` | ⬜ optional | Default parcel weight in grams (default `0` = unknown) |
-| `BOXNOW_TRACKING_URL_TEMPLATE` | ⬜ optional | Public tracking URL, `{voucher}` is substituted |
-| `BOXNOW_VOUCHER_META_KEY` | ⬜ optional | WC order meta key holding the voucher (default `_boxnow_parcel_ids`) |
-| `BOXNOW_LOCKER_META_KEY` | ⬜ optional | WC order meta key holding the chosen locker (default `_boxnow_locker_id`) |
-
-> **Multi-site:** for every extra site in `sites.json`, add the five mapped variables you named there (e.g. `CRANKY_CRANKY_URL`, `CRANKY_CRANKY_CONSUMER_KEY`, `CRANKY_CRANKY_SECRET`, `CRANKY_CRANKY_WP_USER`, `CRANKY_CRANKY_WP_PASSWORD`). BOX NOW settings are global (not per-site).
-
-### 5. Run
-
-Two terminals:
+### Run
 
 ```bash
 # Terminal 1 — backend
 source .venv/bin/activate
-uvicorn api.main:app --reload
-```
+uvicorn api.main:app --reload            # add --log-level debug for verbose logs
 
-```bash
 # Terminal 2 — frontend
-cd ui
-npm run dev
+cd ui && npm run dev
 ```
 
-Open <http://localhost:5173>. Vite proxies `/api/*` to the FastAPI server on port 8000.
+Open <http://localhost:5173> (Vite proxies `/api/*` to FastAPI on port 8000). API docs (Swagger) at <http://localhost:8000/docs>.
 
-API docs (Swagger UI) at <http://localhost:8000/docs>.
-
-### 6. Verbose logging
-
-```bash
-uvicorn api.main:app --reload --log-level debug
-```
+---
 
 ## Project structure
+
+<details>
+<summary>Show tree</summary>
 
 ```
 .
@@ -231,40 +284,38 @@ uvicorn api.main:app --reload --log-level debug
 │   ├── site_registry.py       # Reads sites.json + .env, resolves credentials
 │   ├── routers/
 │   │   ├── sites.py           # GET /api/sites — list configured sites
-│   │   ├── products.py        # Product + variations + bulk import + secret tags
+│   │   ├── products.py        # Products + variations + bulk import + secret tags
 │   │   ├── orders.py          # Orders + BOX NOW (vouchers, labels, webhook)
 │   │   ├── coupons.py         # Coupon CRUD
-│   │   ├── media.py           # WP media listing + upload
+│   │   ├── media.py           # WP media listing + de-duplicated upload
 │   │   ├── dashboard.py       # Aggregated metrics + charts data
-│   │   └── blog_migration.py  # Blog / media / WC product import-export
+│   │   └── blog_migration.py  # Blog / media / WC import-export
 │   └── schemas/               # Pydantic request models
 │
 ├── data_sources/              # External-API adapters
 │   ├── wc_products_adapter.py # WooCommerce wrapper (woocommerce SDK)
 │   ├── wp_image_adapter.py    # WordPress media (basic auth)
 │   ├── boxnow_adapter.py      # BOX NOW Partner API client
-│   └── data/products_data.py  # Legacy ProductStore (still usable via bulk import shape)
+│   └── data/products_data.py  # Legacy ProductStore (bulk-import shape)
 │
-├── domains/                   # Domain logic
-│   ├── product_domain.py      # Variable-product + variation construction
-│   └── categories.py / tags.py
-│
-├── interactors/               # Orchestration (between adapters and domain)
-│   └── create_product_interactor.py
-│
+├── domains/                   # Domain logic (variable-product + variation build)
+├── interactors/               # Orchestration between adapters and domain
 ├── ui/                        # React app (Vite)
-│   ├── src/
-│   │   ├── context/
-│   │   │   └── SiteContext.jsx  # Global active-site state + selector logic
-│   │   ├── pages/             # Route components
-│   │   ├── components/        # Shared UI (MediaPicker, Lightbox, Spinner, …)
-│   │   └── api/client.js      # axios wrapper — passes ?site= to every call
-│   └── vite.config.js         # Dev proxy → http://localhost:8000
-│
+│   └── src/
+│       ├── context/           # SiteContext — active-site state + selector
+│       ├── pages/             # Route components
+│       ├── components/        # GuidedBulkAdd, VariationBuilder, MediaPicker, …
+│       └── api/client.js      # axios wrapper — passes ?site= to every call
 └── utils/config.py            # .env loader
 ```
+</details>
 
-## API surface (selected)
+---
+
+## API surface
+
+<details>
+<summary>Show endpoints</summary>
 
 ```
 Sites
@@ -287,32 +338,28 @@ Products
   POST   /api/products/{id}/secret-tags
 
 Taxonomy (categories / tags / attributes + terms — full CRUD)
-  GET  POST                 /api/products/categories
-  PUT  DELETE               /api/products/categories/{id}
-  GET  POST                 /api/products/tags
-  PUT  DELETE               /api/products/tags/{id}
-  GET  POST                 /api/products/attributes
-  PUT  DELETE               /api/products/attributes/{id}
-  GET  POST                 /api/products/attributes/{id}/terms
-  PUT  DELETE               /api/products/attributes/{id}/terms/{term_id}
+  GET POST                  /api/products/categories
+  PUT DELETE                /api/products/categories/{id}
+  GET POST                  /api/products/tags
+  PUT DELETE                /api/products/tags/{id}
+  GET POST                  /api/products/attributes
+  PUT DELETE                /api/products/attributes/{id}
+  GET POST                  /api/products/attributes/{id}/terms
+  PUT DELETE                /api/products/attributes/{id}/terms/{term_id}
 
 Coupons
-  GET    /api/coupons
-  POST   /api/coupons
-  GET    /api/coupons/{id}
-  PUT    /api/coupons/{id}
-  DELETE /api/coupons/{id}
+  GET POST                  /api/coupons
+  GET PUT DELETE            /api/coupons/{id}
 
 Orders
   GET    /api/orders                       list + filter + paginate (incl. after/before)
   GET    /api/orders/{id}
   PUT    /api/orders/{id}/status
-  GET    /api/orders/{id}/notes
-  POST   /api/orders/{id}/notes
+  GET POST                  /api/orders/{id}/notes
 
 BOX NOW
   GET    /api/orders/{id}/boxnow           current voucher + diagnostic meta
-  POST   /api/orders/{id}/boxnow           create voucher
+  POST   /api/orders/{id}/boxnow           create voucher (?size=1|2|3 → S/M/L)
   DELETE /api/orders/{id}/boxnow           cancel voucher
   GET    /api/orders/{id}/boxnow/track     parcel state + tracking URL
   GET    /api/orders/{id}/boxnow/label     stream PDF/ZPL label
@@ -320,7 +367,7 @@ BOX NOW
 
 Media
   GET    /api/media                        list all WP media
-  POST   /api/media                        upload (multipart)
+  POST   /api/media                        upload (multipart, de-duplicated by filename)
 
 Dashboard
   GET    /api/dashboard/overview           catalog status/type/stock counts
@@ -330,20 +377,16 @@ Dashboard
   GET    /api/dashboard/inventory/stats    stock value, units, managed-product count
   GET    /api/dashboard/needs-attention    orders to ship, expiring coupons, low stock
   GET    /api/dashboard/orders/overview    period revenue / orders / AOV (+ comparison)
-  GET    /api/dashboard/orders/recent
-  GET    /api/dashboard/orders/sales-trend
-  GET    /api/dashboard/orders/monthly-trend
-  GET    /api/dashboard/orders/heatmap     7×24 matrix of order timing
-  GET    /api/dashboard/orders/sparkline   compact daily series for KPI cards
+  GET    /api/dashboard/orders/recent | sales-trend | monthly-trend | heatmap | sparkline
   GET    /api/dashboard/customers/top
 
-Migration (Imports / Exports — source & target selected per request)
-  GET    /api/blog/sites                    list sites available for migration
-  POST   /api/blog/export | /api/blog/import           WordPress posts (+cats/tags/images)
-  POST   /api/media/export | /api/media/import         WP media library
-  POST   /api/wc/sync-taxonomy                         attributes/shipping/cats/tags → target
-  POST   /api/wc/export | /api/wc/export-variations    products + variations
-  POST   /api/wc/sku-map | /api/wc/import-one          product ID maps + upsert one
+Migration (Imports / Exports — source & target chosen per request)
+  GET    /api/blog/sites
+  POST   /api/blog/export | /api/blog/import              WordPress posts (+cats/tags/images)
+  POST   /api/media/export | /api/media/import            WP media library
+  POST   /api/wc/sync-taxonomy                            attributes/shipping/cats/tags → target
+  POST   /api/wc/export | /api/wc/export-variations       products + variations
+  POST   /api/wc/sku-map | /api/wc/import-one             product ID maps + upsert one
   POST   /api/wc/export-coupons | /api/wc/import-coupon   (+ /api/wc/coupon-code-map)
   POST   /api/wc/export-orders  | /api/wc/import-order    (+ /api/wc/order-id-map)
   POST   /api/wc/export-customers | /api/wc/import-customer (+ /api/wc/customer-email-map)
@@ -352,10 +395,13 @@ Migration (Imports / Exports — source & target selected per request)
   POST   /api/wc/export-store-settings | /api/wc/import-store-settings
   POST   /api/wc/export-email-settings | /api/wc/import-email-settings
 ```
+</details>
+
+---
 
 ## Bulk import format
 
-Send `POST /api/products/bulk` with a JSON array of `BulkProductItem`. Each item:
+`POST /api/products/bulk` takes a JSON array of `BulkProductItem`:
 
 ```json
 {
@@ -373,24 +419,30 @@ Send `POST /api/products/bulk` with a JSON array of `BulkProductItem`. Each item
   "variations": {
     "variation_image_mapping": {"S-Black": "tee-s-black", "M-Black": "tee-m-black"},
     "price_overrides":         {"2XL-Black": "20.00"},
-    "sale_prices":             {"S-White": "12.00"}
+    "sale_prices":             {"S-White": "12.00"},
+    "stock_quantities":        {"S-Black": 25}
   }
 }
 ```
 
-- `categories[].id` and `tags[].id` accept slugs/names or numeric IDs.
-- `main_image_ids` and `variation_image_mapping` values accept WP media IDs (numeric) or filenames without extension (string).
-- Behaviour is upsert: if a product with the same `product_name` already exists, it gets updated (categories, tags, images, short description, secret tags); otherwise created from scratch with variations.
+- `categories[].id` / `tags[].id` accept slugs, names, or numeric IDs.
+- `main_image_ids` and `variation_image_mapping` accept WP media IDs (numeric) or filenames without extension (string).
+- **Upsert:** an existing product with the same `product_name` is updated (categories, tags, images, short description, secret tags); otherwise it's created with variations.
+
+> Prefer clicking? The **Guided** tab on the Add Products page builds this payload for you.
+
+---
 
 ## Notes
 
-- **Order revenue calculation:** WooCommerce's legacy `/reports/sales` is unreliable and only counts `completed` orders. The dashboard computes revenue by summing orders directly from `/orders` filtered to `status=completed,processing`. Configurable in `api/routers/dashboard.py` via `DEFAULT_PAID_STATUSES`.
-- **No view/click tracking:** WooCommerce doesn't track product views natively. The dashboard surfaces sales-based metrics only. Integrate Google Analytics if you need view/click data.
-- **Secret-tag scan:** counting secret tags across all products requires fetching every product and parsing descriptions. Gated behind a button on the dashboard.
+- **Order revenue:** WooCommerce's legacy `/reports/sales` is unreliable (counts only `completed`). The dashboard sums `/orders` filtered to `status=completed,processing` — configurable via `DEFAULT_PAID_STATUSES` in `api/routers/dashboard.py`.
+- **No view/click tracking:** WooCommerce doesn't track product views; the dashboard is sales-based only. Add Google Analytics if you need view data.
+- **Secret-tag scan:** counting secret tags across all products fetches every product and parses descriptions — gated behind a button on the dashboard.
+
+---
 
 ## Development
 
-- Run tests: there aren't any yet; please add them as you change things.
-- Format Python: follow `black` defaults if you adopt it.
-- Database/state: none — every page reads live from WooCommerce.
-- Caching: TanStack Query on the frontend (30s default stale time); a singleton adapter pre-fetches products/categories/tags/media on first request and invalidates after mutations.
+- **Tests:** none yet — please add them as you change things.
+- **State:** none — every page reads live from WooCommerce; the frontend caches with TanStack Query and a singleton adapter pre-fetches products/categories/tags/media, invalidated after mutations.
+- **Python style:** `black` defaults if you adopt it.

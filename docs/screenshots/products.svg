@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="500" viewBox="0 0 900 500" role="img" aria-label="Products — screenshot placeholder">
+  <rect width="900" height="500" rx="14" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+  <rect x="0" y="0" width="900" height="54" fill="#1e293b"/>
+  <circle cx="26" cy="27" r="6" fill="#ef4444"/><circle cx="48" cy="27" r="6" fill="#f59e0b"/><circle cx="70" cy="27" r="6" fill="#22c55e"/>
+  <text x="106" y="32" font-family="ui-sans-serif,system-ui,Arial" font-size="14" fill="#94a3b8">Products</text>
+  <rect x="40" y="80" width="300" height="30" rx="6" fill="#eef2ff"/>
+  <rect x="700" y="80" width="160" height="30" rx="6" fill="#2563eb"/>
+  <g fill="#ffffff" stroke="#e2e8f0">
+    <rect x="40" y="128" width="820" height="52" rx="6"/>
+    <rect x="40" y="188" width="820" height="52" rx="6"/>
+    <rect x="40" y="248" width="820" height="52" rx="6"/>
+    <rect x="40" y="308" width="820" height="52" rx="6"/>
+  </g>
+  <g fill="#eef2ff">
+    <rect x="52" y="138" width="32" height="32" rx="4"/><rect x="52" y="198" width="32" height="32" rx="4"/>
+    <rect x="52" y="258" width="32" height="32" rx="4"/><rect x="52" y="318" width="32" height="32" rx="4"/>
+  </g>
+  <text x="450" y="424" text-anchor="middle" font-family="ui-sans-serif,system-ui,Arial" font-size="24" font-weight="700" fill="#334155">Products list</text>
+  <text x="450" y="450" text-anchor="middle" font-family="ui-sans-serif,system-ui,Arial" font-size="13" fill="#94a3b8">placeholder — replace with docs/screenshots/products.png</text>
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="500" viewBox="0 0 900 500" role="img" aria-label="Order detail with BOX NOW — screenshot placeholder">
+  <rect width="900" height="500" rx="14" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+  <rect x="0" y="0" width="900" height="54" fill="#1e293b"/>
+  <circle cx="26" cy="27" r="6" fill="#ef4444"/><circle cx="48" cy="27" r="6" fill="#f59e0b"/><circle cx="70" cy="27" r="6" fill="#22c55e"/>
+  <text x="106" y="32" font-family="ui-sans-serif,system-ui,Arial" font-size="14" fill="#94a3b8">Order #1234 · BOX NOW</text>
+  <rect x="40" y="80" width="500" height="300" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="60" y="100" width="460" height="26" rx="5" fill="#f1f5f9"/>
+  <rect x="60" y="140" width="460" height="26" rx="5" fill="#f1f5f9"/>
+  <rect x="60" y="180" width="300" height="26" rx="5" fill="#f1f5f9"/>
+  <rect x="560" y="80" width="300" height="300" rx="10" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="710" y="120" text-anchor="middle" font-family="Arial" font-size="14" fill="#92400e">BOX NOW</text>
+  <text x="600" y="170" font-family="Arial" font-size="12" fill="#92400e">Compartment size</text>
+  <circle cx="620" cy="200" r="18" fill="#2563eb"/><text x="620" y="205" text-anchor="middle" font-size="13" fill="#fff" font-family="Arial">S</text>
+  <circle cx="672" cy="200" r="18" fill="#fff" stroke="#cbd5e1"/><text x="672" y="205" text-anchor="middle" font-size="13" fill="#64748b" font-family="Arial">M</text>
+  <circle cx="724" cy="200" r="18" fill="#fff" stroke="#cbd5e1"/><text x="724" y="205" text-anchor="middle" font-size="13" fill="#64748b" font-family="Arial">L</text>
+  <rect x="600" y="240" width="220" height="40" rx="8" fill="#f59e0b"/>
+  <text x="710" y="265" text-anchor="middle" font-size="13" fill="#fff" font-family="Arial">Create voucher</text>
+  <text x="450" y="430" text-anchor="middle" font-family="ui-sans-serif,system-ui,Arial" font-size="22" font-weight="700" fill="#334155">Order detail + BOX NOW</text>
+  <text x="450" y="456" text-anchor="middle" font-family="ui-sans-serif,system-ui,Arial" font-size="13" fill="#94a3b8">placeholder — replace with docs/screenshots/order-boxnow.png</text>
+</svg>

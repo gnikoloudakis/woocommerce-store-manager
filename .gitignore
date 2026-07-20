@@ -163,3 +163,6 @@ blog_export.json
 # Local product images
 images/
 .claude/
+
+# Private product catalog data — never publish
+data_sources/data/products_data.py

@@ -12,6 +12,10 @@ Make sure to set the correct permissions for the application password, such as '
 This adapter is designed to work with the WooCommerce REST API for media management."""
 
 
+class WPImageError(Exception):
+    """Raised when the WordPress media API cannot be reached or authenticated."""
+
+
 class WPImageAdapter:
     # Configuration
     IMAGES_FOLDER = "images"
@@ -29,10 +33,21 @@ class WPImageAdapter:
         self.cred_token = base64.b64encode(self.creds.encode())
         self.headers = {"Authorization": "Basic " + self.cred_token.decode("utf-8")}
 
-        self.all_media = self.list_all_media()
+        # Media is loaded lazily so a WordPress auth failure can't crash adapter
+        # construction (and thus every endpoint that depends on it).
+        self.all_media = []
+        self._media_loaded = False
+
+    def ensure_media_loaded(self, force: bool = False):
+        """Populate self.all_media once (or again if force=True). Raises WPImageError."""
+        if force or not self._media_loaded:
+            self.all_media = self.list_all_media()
+            self._media_loaded = True
+        return self.all_media
 
     def get_image_id_by_filename(self, filename: str) -> int | None:
         """Get the ID of an image by its filename (extension-agnostic)."""
+        self.ensure_media_loaded()
         stem = os.path.splitext(filename)[0]
         for med in self.all_media:
             med_filename = med["filename"].split("/")[-1]
@@ -42,6 +57,7 @@ class WPImageAdapter:
         raise ValueError(f"Image with filename '{filename}' not found in media library.")
 
     def search_media_by_filename(self, filename: str):
+        self.ensure_media_loaded()
         for file in self.all_media or []:
             if filename in file["filename"]:
                 # print(f"Found media file: {file['filename']} with URL: {file['url']}")
@@ -57,6 +73,7 @@ class WPImageAdapter:
         """
         if not filename:
             return None
+        self.ensure_media_loaded()
         stem = os.path.splitext(filename)[0].lower()
         for med in self.all_media or []:
             med_filename = med["filename"].split("/")[-1]
@@ -67,12 +84,22 @@ class WPImageAdapter:
         return None
 
     def list_all_media(self):
-        print("Fetching all media files from WordPress...")
         all_media = []
         page = 1
         while True:
             params = {"per_page": 100, "page": page}
-            r = requests.get(f"{self.wc_url}/wp-json/wp/v2/media", headers=self.headers, params=params)
+            try:
+                r = requests.get(f"{self.wc_url}/wp-json/wp/v2/media", headers=self.headers, params=params, timeout=30)
+            except requests.RequestException as e:
+                raise WPImageError(f"Could not reach the WordPress media API at {self.wc_url}: {e}") from e
+            if r.status_code in (401, 403):
+                raise WPImageError(
+                    f"WordPress rejected the credentials for {self.wc_url} (HTTP {r.status_code}). "
+                    f"Check WP_USER and WP_PASSWORD — WP_PASSWORD must be a valid WordPress "
+                    f"Application Password for that user, with permission to read/upload media. "
+                    f"If WooCommerce works but this does not, your host is likely stripping the "
+                    f"Authorization header (add an .htaccess rule to pass HTTP_AUTHORIZATION)."
+                )
             if r.status_code == 400 or not r.json():
                 break
             r.raise_for_status()
